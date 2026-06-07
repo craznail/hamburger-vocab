@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
-import { Book, Search, Trash2, Play, CheckCircle, Clock } from 'lucide-vue-next'
+import { Book, Search, Trash2, Play, CheckCircle, Clock, Loader, VolumeX } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
 
 const route = useRoute()
@@ -15,6 +15,8 @@ const stats = ref({ total: 0, mastered: 0, due: 0 })
 const searchQuery = ref('')
 const activeFilter = ref('all')
 const loading = ref(true)
+const ttsPlayingWord = ref(null) // the word currently being spoken
+const ttsUnavailable = ref(false)
 
 onMounted(async () => {
   try {
@@ -61,12 +63,51 @@ async function confirmDelete() {
   }
 }
 
+function hasSpeechVoices() {
+  if (!('speechSynthesis' in window)) return false
+  try {
+    const voices = speechSynthesis.getVoices()
+    return voices.length > 0
+  } catch {
+    return false
+  }
+}
+
+function speakViaAudio(word) {
+  ttsPlayingWord.value = word
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(word)}`
+  const audio = new Audio(url)
+  audio.onended = () => { ttsPlayingWord.value = null }
+  audio.onerror = () => {
+    ttsPlayingWord.value = null
+    ttsUnavailable.value = true
+    setTimeout(() => { ttsUnavailable.value = false }, 3000)
+  }
+  audio.play().catch(() => {
+    ttsPlayingWord.value = null
+    ttsUnavailable.value = true
+    setTimeout(() => { ttsUnavailable.value = false }, 3000)
+  })
+}
+
+function speakViaWebSpeech(word) {
+  ttsPlayingWord.value = word
+  const utterance = new SpeechSynthesisUtterance(word)
+  utterance.lang = 'en-US'
+  utterance.rate = 0.9
+  utterance.onend = () => { ttsPlayingWord.value = null }
+  utterance.onerror = () => {
+    // Web Speech failed — try audio fallback
+    speakViaAudio(word)
+  }
+  speechSynthesis.speak(utterance)
+}
+
 function speak(word) {
-  if ('speechSynthesis' in window) {
-    const utterance = new SpeechSynthesisUtterance(word)
-    utterance.lang = 'en-US'
-    utterance.rate = 0.9
-    speechSynthesis.speak(utterance)
+  if (hasSpeechVoices()) {
+    speakViaWebSpeech(word)
+  } else {
+    speakViaAudio(word)
   }
 }
 </script>
@@ -155,6 +196,11 @@ function speak(word) {
         </button>
       </div>
 
+      <!-- TTS unavailable hint -->
+      <p v-if="ttsUnavailable" class="text-xs text-gray-400 mb-2 text-center">
+        发音不可用，请检查网络或 TTS 设置
+      </p>
+
       <div class="space-y-1">
         <div
           v-for="card in filteredCards"
@@ -163,11 +209,15 @@ function speak(word) {
         >
           <div class="flex items-center gap-3">
             <button
-              class="p-1 text-gray-300 hover:text-blue-500 transition-colors cursor-pointer"
+              class="p-1 transition-colors cursor-pointer"
+              :class="ttsPlayingWord === card.word ? 'text-blue-500' : 'text-gray-300 hover:text-blue-500'"
               @click="speak(card.word)"
-              title="发音"
+              :title="ttsPlayingWord === card.word ? '播放中...' : '发音'"
+              :disabled="ttsPlayingWord === card.word"
             >
-              <Play class="w-4 h-4" />
+              <Loader v-if="ttsPlayingWord === card.word" class="w-4 h-4 animate-spin" />
+              <VolumeX v-else-if="ttsUnavailable && ttsPlayingWord === null" class="w-4 h-4" />
+              <Play v-else class="w-4 h-4" />
             </button>
             <div>
               <div class="font-medium text-gray-800">{{ card.word }}</div>

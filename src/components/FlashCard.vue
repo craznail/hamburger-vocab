@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { Volume2 } from 'lucide-vue-next'
+import { Volume2, Loader, VolumeX } from 'lucide-vue-next'
 
 const props = defineProps({
   card: { type: Object, required: true },
@@ -11,26 +11,58 @@ const props = defineProps({
 const emit = defineEmits(['rate'])
 
 const revealed = ref(false)
+const ttsState = ref('idle') // idle | loading | playing | unavailable
 
 function toggleReveal() {
   revealed.value = !revealed.value
 }
 
+// Check if Web Speech API has usable voices
+function hasSpeechVoices() {
+  if (!('speechSynthesis' in window)) return false
+  try {
+    const voices = speechSynthesis.getVoices()
+    return voices.length > 0
+  } catch {
+    return false
+  }
+}
+
+// Fallback: Google Translate TTS audio
+function speakViaAudio(word) {
+  ttsState.value = 'loading'
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(word)}`
+  const audio = new Audio(url)
+  audio.onplaying = () => { ttsState.value = 'playing' }
+  audio.onended = () => { ttsState.value = 'idle' }
+  audio.onerror = () => { ttsState.value = 'unavailable' }
+  audio.play().catch(() => {
+    ttsState.value = 'unavailable'
+  })
+}
+
+// Try Web Speech API; voices must be available
+function speakViaWebSpeech(word) {
+  ttsState.value = 'loading'
+  const utterance = new SpeechSynthesisUtterance(word)
+  utterance.lang = 'en-US'
+  utterance.rate = 0.9
+  utterance.onstart = () => { ttsState.value = 'playing' }
+  utterance.onend = () => { ttsState.value = 'idle' }
+  utterance.onerror = () => {
+    // Web Speech failed — try audio fallback
+    speakViaAudio(word)
+  }
+  speechSynthesis.speak(utterance)
+}
+
 function speak(event) {
   event.stopPropagation()
 
-  // Android: native TTS via JavaScriptInterface
-  if (window.NativeTts) {
-    window.NativeTts.speak(props.card.word)
-    return
-  }
-
-  // Desktop: Web Speech API
-  if ('speechSynthesis' in window) {
-    const utterance = new SpeechSynthesisUtterance(props.card.word)
-    utterance.lang = 'en-US'
-    utterance.rate = 0.9
-    speechSynthesis.speak(utterance)
+  if (hasSpeechVoices()) {
+    speakViaWebSpeech(props.card.word)
+  } else {
+    speakViaAudio(props.card.word)
   }
 }
 </script>
@@ -57,11 +89,17 @@ function speak(event) {
           <button
             class="p-2 sm:p-3 rounded-full hover:bg-gray-100 text-gray-400 hover:text-blue-500 transition-colors"
             @click="speak"
-            title="发音"
+            :title="ttsState === 'unavailable' ? 'TTS 不可用' : '发音'"
+            :disabled="ttsState === 'loading'"
           >
-            <Volume2 class="w-6 h-6 sm:w-7 sm:h-7" />
+            <Loader v-if="ttsState === 'loading'" class="w-6 h-6 sm:w-7 sm:h-7 animate-spin" />
+            <VolumeX v-else-if="ttsState === 'unavailable'" class="w-6 h-6 sm:w-7 sm:h-7 text-gray-300" />
+            <Volume2 v-else class="w-6 h-6 sm:w-7 sm:h-7" />
           </button>
         </div>
+
+        <!-- TTS unavailable hint -->
+        <p v-if="ttsState === 'unavailable'" class="text-xs text-gray-400 mt-1">发音不可用，请检查网络或 TTS 设置</p>
 
         <transition name="reveal">
           <div v-if="revealed" class="flex flex-col items-center">
