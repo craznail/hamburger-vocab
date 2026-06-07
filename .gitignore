@@ -10,3 +10,4 @@ src-tauri/gen/
 .DS_Store
 *.swp
 *.swo
+发布包/
