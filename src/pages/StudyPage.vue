@@ -2,9 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
-import { ArrowLeft, CheckCircle, XCircle, BarChart3 } from 'lucide-vue-next'
+import { CheckCircle, XCircle, BarChart3 } from 'lucide-vue-next'
+import NavBar from '../components/NavBar.vue'
 import FlashCard from '../components/FlashCard.vue'
-import ProgressBar from '../components/ProgressBar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,22 +32,32 @@ const forgotCount = computed(() =>
   sessionResults.value.filter(r => r.quality === 0).length
 )
 
-onMounted(() => {
-  loadCards()
+function shuffle(array) {
+  const a = [...array]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+onMounted(async () => {
+  await loadCards()
 })
 
-function loadCards() {
-  cards.value = store.getTodayLearningCards(deckId.value)
+async function loadCards() {
+  cards.value = await store.getTodayLearningCards(deckId.value)
+  cards.value = shuffle(cards.value)
   if (cards.value.length === 0) {
     sessionDone.value = true
   }
 }
 
-function handleRate(quality) {
+async function handleRate(quality) {
   if (!currentCard.value) return
 
   const card = currentCard.value
-  store.rateCard(card.id, quality, {
+  await store.rateCard(card.id, quality, {
     ef: card.ef,
     interval: card.interval,
     repetitions: card.repetitions
@@ -70,35 +80,28 @@ function goHome() {
   router.push({ name: 'Home' })
 }
 
-function continueStudy() {
-  // Refresh cards and start again
+async function continueStudy() {
   sessionDone.value = false
   currentIndex.value = 0
   sessionResults.value = []
-  loadCards()
+  await loadCards()
 }
 </script>
 
 <template>
   <div class="min-h-screen flex flex-col">
-    <!-- Header -->
-    <header class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-      <button
-        class="flex items-center gap-1.5 text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
-        @click="goHome"
-      >
-        <ArrowLeft class="w-5 h-5" />
-        <span class="text-sm">返回</span>
-      </button>
-      <div v-if="!sessionDone" class="text-sm text-gray-400">
-        {{ progress.current }} / {{ progress.total }}
-      </div>
-    </header>
+    <NavBar @back="goHome">
+      <template #right>
+        <div v-if="!sessionDone" class="text-sm text-gray-400">
+          {{ progress.current }} / {{ progress.total }}
+        </div>
+      </template>
+    </NavBar>
 
     <!-- Content -->
-    <div class="flex-1 flex flex-col items-center justify-center px-4 py-6">
+    <div class="flex-1 flex flex-col pt-1 sm:pt-2">
       <!-- Session Done -->
-      <div v-if="sessionDone" class="text-center max-w-sm w-full">
+      <div v-if="sessionDone" class="text-center w-full max-w-lg sm:max-w-xl mx-auto">
         <div v-if="cards.length === 0" class="py-12">
           <CheckCircle class="w-16 h-16 mx-auto mb-4 text-green-400" />
           <h2 class="text-xl font-semibold text-gray-700 mb-2">今日无待复习</h2>
@@ -149,14 +152,12 @@ function continueStudy() {
 
       <!-- Active Study -->
       <template v-else-if="currentCard">
-        <ProgressBar
-          :current="currentIndex + 1"
-          :total="cards.length"
-          class="mb-6 max-w-sm"
-        />
         <FlashCard
           :key="currentCard.id"
           :card="currentCard"
+          :current="currentIndex + 1"
+          :total="cards.length"
+          class="flex-1"
           @rate="handleRate"
         />
       </template>
