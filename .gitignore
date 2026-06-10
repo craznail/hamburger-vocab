@@ -11,3 +11,6 @@ src-tauri/gen/
 *.swp
 *.swo
 发布包/
+
+# Env
+.env

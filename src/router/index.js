@@ -12,6 +12,11 @@ const routes = [
     component: () => import('../pages/StudyPage.vue')
   },
   {
+    path: '/dictation',
+    name: 'Dictation',
+    component: () => import('../pages/DictationPage.vue')
+  },
+  {
     path: '/deck/:id',
     name: 'DeckDetail',
     component: () => import('../pages/DeckDetailPage.vue')

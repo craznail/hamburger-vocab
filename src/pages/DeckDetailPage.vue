@@ -2,8 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
-import { Book, Search, Trash2, Play, CheckCircle, Clock, Loader, VolumeX } from 'lucide-vue-next'
+import { Book, Search, Trash2, Play, CheckCircle, Clock, Loader, Volume2, VolumeX } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
+import { speakWord } from '../utils/speech.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -56,6 +57,10 @@ function goStudy() {
   router.push({ name: 'Study', query: { deckId: route.params.id } })
 }
 
+function goDictation() {
+  router.push({ name: 'Dictation', query: { deckId: route.params.id } })
+}
+
 async function confirmDelete() {
   if (confirm('确定要删除这个词库吗？所有单词数据将丢失。')) {
     await store.removeDeck(route.params.id)
@@ -63,52 +68,16 @@ async function confirmDelete() {
   }
 }
 
-function hasSpeechVoices() {
-  if (!('speechSynthesis' in window)) return false
-  try {
-    const voices = speechSynthesis.getVoices()
-    return voices.length > 0
-  } catch {
-    return false
-  }
-}
-
-function speakViaAudio(word) {
-  ttsPlayingWord.value = word
-  const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(word)}`
-  const audio = new Audio(url)
-  audio.onended = () => { ttsPlayingWord.value = null }
-  audio.onerror = () => {
-    ttsPlayingWord.value = null
-    ttsUnavailable.value = true
-    setTimeout(() => { ttsUnavailable.value = false }, 3000)
-  }
-  audio.play().catch(() => {
+function speak(word) {
+  speakWord(word, {
+    onStateChange: state => {
+      ttsPlayingWord.value = state === 'idle' || state === 'unavailable' ? null : word
+    }
+  }).catch(() => {
     ttsPlayingWord.value = null
     ttsUnavailable.value = true
     setTimeout(() => { ttsUnavailable.value = false }, 3000)
   })
-}
-
-function speakViaWebSpeech(word) {
-  ttsPlayingWord.value = word
-  const utterance = new SpeechSynthesisUtterance(word)
-  utterance.lang = 'en-US'
-  utterance.rate = 0.9
-  utterance.onend = () => { ttsPlayingWord.value = null }
-  utterance.onerror = () => {
-    // Web Speech failed — try audio fallback
-    speakViaAudio(word)
-  }
-  speechSynthesis.speak(utterance)
-}
-
-function speak(word) {
-  if (hasSpeechVoices()) {
-    speakViaWebSpeech(word)
-  } else {
-    speakViaAudio(word)
-  }
 }
 </script>
 
@@ -127,6 +96,14 @@ function speak(word) {
           >
             <Play class="w-4 h-4" />
             学习
+          </button>
+          <button
+            v-if="stats.due > 0"
+            class="flex items-center gap-1.5 px-4 py-2 border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 transition-colors text-sm cursor-pointer"
+            @click="goDictation"
+          >
+            <Volume2 class="w-4 h-4" />
+            听写
           </button>
           <button
             class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"

@@ -2,18 +2,37 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
-import { BookOpen, Plus, Book, CheckCircle, Clock, ArrowRight, Download } from 'lucide-vue-next'
+import { BookOpen, Plus, Book, CheckCircle, Clock, ArrowRight, Download, Volume2, Play, Loader, VolumeX } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
 import FileUpload from '../components/FileUpload.vue'
+import { speakWord } from '../utils/speech.js'
 import ImportPreview from '../components/ImportPreview.vue'
 
 const router = useRouter()
 const store = useAppStore()
 import { downloadDB } from '../services/database.js'
 
+const ttsWord = ref('')
+const ttsState = ref('idle')
+
 const showPreview = ref(false)
 const previewFile = ref('')
 const previewResult = ref(null)
+
+const ttsError = ref('')
+
+function testTTS() {
+  const word = ttsWord.value.trim()
+  if (!word) return
+  ttsError.value = ''
+  ttsState.value = 'loading'
+  speakWord(word, {
+    onStateChange: state => { ttsState.value = state }
+  }).catch((err) => {
+    ttsState.value = 'unavailable'
+    ttsError.value = err?.message || String(err)
+  })
+}
 
 function onFileSelected(fileName, text) {
   const result = store.importFile(fileName, text)
@@ -27,6 +46,10 @@ function onFileSelected(fileName, text) {
 
 function goStudy(deckId) {
   router.push({ name: 'Study', query: { deckId } })
+}
+
+function goDictation() {
+  router.push({ name: 'Dictation' })
 }
 
 function goDeckDetail(deckId) {
@@ -71,12 +94,47 @@ function getTotalMasteredRatio(deck) {
             开始学习
             <ArrowRight class="w-4 h-4" />
           </button>
+          <button
+            class="flex items-center gap-2 px-5 py-2.5 border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 transition-colors cursor-pointer"
+            @click="goDictation"
+          >
+            <Volume2 class="w-4 h-4" />
+            开始听写
+          </button>
         </div>
       </div>
 
       <!-- Upload -->
       <div class="mb-6">
         <FileUpload @file-selected="onFileSelected" />
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+        <div class="flex items-center gap-2 text-gray-600 mb-3">
+          <Volume2 class="w-4 h-4" />
+          <span class="font-medium text-sm">快速发音测试</span>
+        </div>
+        <div class="flex gap-2">
+          <input
+            v-model="ttsWord"
+            type="text"
+            placeholder="输入单词测试发音"
+            class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            @keyup.enter="testTTS"
+          />
+          <button
+            class="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm cursor-pointer disabled:opacity-50"
+            :disabled="ttsState === 'loading' || !ttsWord.trim()"
+            @click="testTTS"
+          >
+            <Loader v-if="ttsState === 'loading'" class="w-4 h-4 animate-spin" />
+            <Play v-else class="w-4 h-4" />
+            发音
+          </button>
+        </div>
+        <p v-if="ttsState === 'unavailable'" class="text-xs text-red-400 mt-2">发音不可用</p>
+        <p v-if="ttsError" class="text-xs text-gray-400 mt-1 break-all">{{ ttsError }}</p>
+        <p v-else-if="ttsState === 'playing'" class="text-xs text-green-500 mt-2">正在播放...</p>
       </div>
 
       <!-- Decks List -->

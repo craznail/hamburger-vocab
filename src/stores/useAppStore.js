@@ -10,9 +10,15 @@ export const useAppStore = defineStore('app', () => {
   const initialized = ref(false)
 
   async function init() {
-    await db.initDB()
-    await refreshDecks()
-    await refreshTodayCount()
+    try {
+      await db.initDB()
+      await refreshDecks()
+      await refreshTodayCount()
+    } catch (e) {
+      console.warn('数据库初始化失败（预览模式时正常）:', e)
+      decks.value = []
+      todayCount.value = 0
+    }
     initialized.value = true
   }
 

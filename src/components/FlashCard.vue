@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { Volume2, Loader, VolumeX } from 'lucide-vue-next'
+import { speakWord } from '../utils/speech.js'
 
 const props = defineProps({
   card: { type: Object, required: true },
@@ -17,53 +18,13 @@ function toggleReveal() {
   revealed.value = !revealed.value
 }
 
-// Check if Web Speech API has usable voices
-function hasSpeechVoices() {
-  if (!('speechSynthesis' in window)) return false
-  try {
-    const voices = speechSynthesis.getVoices()
-    return voices.length > 0
-  } catch {
-    return false
-  }
-}
-
-// Fallback: Google Translate TTS audio
-function speakViaAudio(word) {
-  ttsState.value = 'loading'
-  const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(word)}`
-  const audio = new Audio(url)
-  audio.onplaying = () => { ttsState.value = 'playing' }
-  audio.onended = () => { ttsState.value = 'idle' }
-  audio.onerror = () => { ttsState.value = 'unavailable' }
-  audio.play().catch(() => {
-    ttsState.value = 'unavailable'
-  })
-}
-
-// Try Web Speech API; voices must be available
-function speakViaWebSpeech(word) {
-  ttsState.value = 'loading'
-  const utterance = new SpeechSynthesisUtterance(word)
-  utterance.lang = 'en-US'
-  utterance.rate = 0.9
-  utterance.onstart = () => { ttsState.value = 'playing' }
-  utterance.onend = () => { ttsState.value = 'idle' }
-  utterance.onerror = () => {
-    // Web Speech failed — try audio fallback
-    speakViaAudio(word)
-  }
-  speechSynthesis.speak(utterance)
-}
-
 function speak(event) {
   event.stopPropagation()
-
-  if (hasSpeechVoices()) {
-    speakViaWebSpeech(props.card.word)
-  } else {
-    speakViaAudio(props.card.word)
-  }
+  speakWord(props.card.word, {
+    onStateChange: state => { ttsState.value = state }
+  }).catch(() => {
+    ttsState.value = 'unavailable'
+  })
 }
 </script>
 
