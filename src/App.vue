@@ -10,10 +10,12 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#fafafa] text-gray-800">
-    <div v-if="!store.initialized" class="flex items-center justify-center h-screen">
-      <p class="text-lg text-gray-400">加载中...</p>
+  <div class="min-h-screen">
+    <div v-if="!store.initialized" class="app-shell flex items-center justify-center">
+      <p class="text-lg text-slate-400">加载中...</p>
     </div>
-    <router-view v-else />
+    <main v-else class="app-shell">
+      <router-view />
+    </main>
   </div>
 </template>

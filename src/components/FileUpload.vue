@@ -11,7 +11,9 @@ async function handleFileOpen() {
   isProcessing.value = true
 
   try {
-    const result = await pickFile()
+    const result = await pickFile({
+      filters: [{ name: 'Text Files', extensions: ['txt', 'md', 'markdown'] }]
+    })
 
     if (!result) {
       isProcessing.value = false
@@ -31,16 +33,19 @@ async function handleFileOpen() {
 
 <template>
   <div
-    class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+    class="rounded-xl p-4 text-center transition-colors"
     :class="{ 'opacity-50 pointer-events-none': isProcessing }"
     @click="handleFileOpen"
   >
-    <Upload class="w-10 h-10 mx-auto mb-3 text-gray-400" />
-    <p class="text-gray-500 mb-1">
-      {{ isProcessing ? '处理中...' : '点击选择 .txt 文件' }}
+    <Upload class="mx-auto mb-3 h-9 w-9 text-blue-400" />
+    <p class="mb-1 text-sm font-black text-ink">
+      {{ isProcessing ? '处理中...' : '拖拽文件到这里' }}
     </p>
-    <p class="text-xs text-gray-400">
-      支持纯单词 / 单词+释义 / 单词+词形变化+释义
+    <p class="text-xs text-slate-400">
+      支持 TXT、Markdown
     </p>
+    <button class="blue-gradient mt-5 h-10 rounded-xl px-8 text-sm font-bold text-white" type="button">
+      选择文件
+    </button>
   </div>
 </template>

@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, CheckCircle, Eye, Home, Loader, Pause, Play, RotateCcw, Settings, Volume2, VolumeX } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, CheckCircle, Eye, Heart, Home, Loader, Pause, Play, RotateCcw, Settings, Star, Trees, Volume2, VolumeX } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
 import { speakWord } from '../platform/tts.js'
 import NavBar from '../components/NavBar.vue'
+import BottomNav from '../components/BottomNav.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -55,6 +56,10 @@ onMounted(async () => {
     if (cards.value.length === 0) {
       sessionDone.value = true
     }
+  } catch (e) {
+    console.warn('加载听写卡片失败（预览模式时正常）:', e)
+    cards.value = []
+    sessionDone.value = true
   } finally {
     loading.value = false
   }
@@ -197,158 +202,146 @@ function restartSession() {
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col bg-[#fafafa]">
+  <div class="app-page flex min-h-screen flex-col">
     <NavBar @back="goHome">
-      <template #right>
-        <div v-if="!loading && !sessionDone" class="text-sm text-gray-400">
-          {{ progress.current }} / {{ progress.total }}
+      <template #left>
+        <div v-if="!loading && !sessionDone">
+          <h1 class="text-sm font-black text-ink">听写模式</h1>
+          <p class="mt-1 text-xs text-slate-400">{{ progress.current }} / {{ progress.total }}</p>
         </div>
+      </template>
+      <template #right>
+        <button v-if="!loading && !sessionDone" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm" title="播报设置">
+          <Settings class="h-5 w-5" />
+        </button>
       </template>
     </NavBar>
 
-    <div v-if="loading" class="flex-1 flex items-center justify-center">
-      <p class="text-gray-400">加载中...</p>
+    <div v-if="!loading && !sessionDone && progress.total > 0" class="px-5">
+      <div class="progress-track h-1.5">
+        <div class="progress-fill" :style="{ width: `${Math.round((progress.current / progress.total) * 100)}%` }" />
+      </div>
     </div>
 
-    <div v-else-if="sessionDone" class="flex-1 flex items-center justify-center px-5">
-      <div class="w-full max-w-md text-center">
-        <CheckCircle class="w-16 h-16 mx-auto mb-4 text-green-400" />
-        <h2 class="text-xl font-semibold text-gray-700 mb-2">
+    <div v-if="loading" class="flex flex-1 items-center justify-center">
+      <p class="text-slate-400">加载中...</p>
+    </div>
+
+    <div v-else-if="sessionDone" class="flex flex-1 items-center justify-center px-5">
+      <div class="soft-panel w-full rounded-2xl p-8 text-center">
+        <CheckCircle class="mx-auto mb-4 h-16 w-16 text-green-400" />
+        <h2 class="mb-2 text-xl font-black text-ink">
           {{ cards.length === 0 ? '今日无待听写' : '本轮播报完成' }}
         </h2>
-        <p class="text-gray-400 mb-6">
+        <p class="mb-6 text-sm text-slate-400">
           {{ cards.length === 0 ? '当前没有到期单词，明天再来吧' : `共播报 ${cards.length} 个单词` }}
         </p>
         <div class="flex justify-center gap-3">
           <button
             v-if="cards.length > 0"
-            class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors cursor-pointer"
+            class="blue-gradient inline-flex h-11 items-center gap-2 rounded-xl px-5 text-sm font-bold text-white"
             @click="restartSession"
           >
-            <RotateCcw class="w-4 h-4" />
+            <RotateCcw class="h-4 w-4" />
             再来一轮
           </button>
           <button
-            class="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+            class="inline-flex h-11 items-center gap-2 rounded-xl border border-blue-100 bg-white px-5 text-sm font-bold text-slate-500"
             @click="goHome"
           >
-            <Home class="w-4 h-4" />
+            <Home class="h-4 w-4" />
             返回首页
           </button>
         </div>
       </div>
     </div>
 
-    <div v-else-if="currentCard" class="flex-1 flex flex-col px-5 py-5">
-      <div class="w-full max-w-2xl mx-auto flex-1 flex flex-col gap-5">
-        <div class="bg-white border border-gray-100 shadow-sm rounded-xl p-4">
-          <div class="flex items-center gap-2 text-gray-600 mb-4">
-            <Settings class="w-4 h-4" />
-            <span class="text-sm font-medium">播报设置</span>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <label class="text-sm text-gray-500">
-              播报次数
-              <input
-                v-model.number="repeatCount"
-                type="number"
-                min="1"
-                max="5"
-                class="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
-                @blur="clampSettings"
-              />
-            </label>
-            <label class="text-sm text-gray-500">
-              间隔秒数
-              <input
-                v-model.number="intervalSeconds"
-                type="number"
-                min="1"
-                max="10"
-                class="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
-                @blur="clampSettings"
-              />
-            </label>
-          </div>
-        </div>
-
-        <div class="flex-1 bg-white shadow-lg border border-gray-100 rounded-xl overflow-hidden flex flex-col">
-          <div class="w-full h-1.5 bg-gray-200 overflow-hidden">
+    <div v-else-if="currentCard" class="flex flex-1 flex-col px-5 py-5">
+      <div class="flex flex-1 flex-col gap-5">
+        <div class="soft-panel flex-1 rounded-[24px] px-5 py-8 text-center">
             <div
-              class="h-full bg-blue-500 transition-all duration-300"
-              :style="{ width: `${Math.round((progress.current / progress.total) * 100)}%` }"
-            />
-          </div>
-
-          <div class="flex-1 flex flex-col items-center justify-center px-5 py-8 text-center">
-            <div
-              class="w-20 h-20 rounded-full flex items-center justify-center mb-5"
-              :class="isPlaying ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'"
+              class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full"
+              :class="isPlaying ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'"
             >
-              <Loader v-if="speechState === 'loading'" class="w-9 h-9 animate-spin" />
-              <VolumeX v-else-if="speechState === 'unavailable'" class="w-9 h-9" />
-              <Volume2 v-else class="w-9 h-9" />
+              <Loader v-if="speechState === 'loading'" class="h-8 w-8 animate-spin" />
+              <VolumeX v-else-if="speechState === 'unavailable'" class="h-8 w-8" />
+              <Volume2 v-else class="h-8 w-8" />
             </div>
 
-            <h1 class="text-xl sm:text-2xl font-semibold text-gray-700 mb-2">请听发音并在纸上写下单词</h1>
-            <p class="text-sm text-gray-400 mb-6">
-              当前单词会播报 {{ repeatCount }} 次，每次间隔 {{ intervalSeconds }} 秒
+            <h1 class="mb-1 text-2xl font-black text-ink">{{ answerVisible ? currentCard.word : '听发音，写下单词' }}</h1>
+            <p v-if="answerVisible && currentCard.inflections?.length" class="mb-5 text-sm font-bold text-blue-500">
+              {{ currentCard.inflections.join(' · ') }}
             </p>
 
-            <p v-if="ttsUnavailable" class="text-xs text-gray-400 mb-4">发音不可用，请检查网络或 TTS 设置</p>
+            <div class="mx-auto my-6 flex h-12 max-w-[260px] items-center justify-center gap-1 text-blue-400">
+              <span v-for="n in 28" :key="n" class="w-1 rounded-full bg-current" :style="{ height: `${12 + ((n * 7) % 28)}px`, opacity: 0.35 + ((n % 5) * 0.12) }" />
+            </div>
 
-            <div class="flex flex-wrap justify-center gap-3">
+            <p v-if="ttsUnavailable" class="mb-4 text-xs text-slate-400">发音不可用，请检查网络或 TTS 设置</p>
+
+            <div class="mb-5 flex flex-wrap justify-center gap-3">
               <button
-                class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors cursor-pointer"
+                class="blue-gradient inline-flex h-11 items-center gap-2 rounded-xl px-6 text-sm font-bold text-white"
                 @click="togglePlayback"
               >
-                <Pause v-if="isPlaying" class="w-4 h-4" />
-                <Play v-else class="w-4 h-4" />
+                <Pause v-if="isPlaying" class="h-4 w-4" />
+                <Play v-else class="h-4 w-4" />
                 {{ isPlaying ? '暂停' : '开始播报' }}
               </button>
               <button
-                class="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+                class="inline-flex h-11 items-center gap-2 rounded-xl border border-blue-100 bg-white px-6 text-sm font-bold text-slate-500"
                 @click="revealAnswer"
               >
-                <Eye class="w-4 h-4" />
+                <Eye class="h-4 w-4" />
                 看答案
               </button>
             </div>
-          </div>
 
-          <div v-if="answerVisible" class="border-t border-gray-100 px-5 py-6 text-center">
-            <h2 class="text-4xl sm:text-5xl font-bold text-gray-800 mb-3">{{ currentCard.word }}</h2>
-            <div
-              v-if="currentCard.inflections && currentCard.inflections.length"
-              class="text-lg sm:text-xl text-gray-500 mb-3"
-            >
-              {{ currentCard.inflections.join(' · ') }}
-            </div>
-            <p v-if="currentCard.definition" class="text-base sm:text-lg text-gray-600 leading-relaxed">
+            <input class="h-14 w-full rounded-xl border border-blue-100 bg-white px-4 text-center text-sm text-ink outline-none focus:border-blue-300" placeholder="请输入你听到的单词" />
+            <p class="mt-4 text-xs text-slate-400">不知道？点击查看答案</p>
+
+            <p v-if="answerVisible && currentCard.definition" class="mt-4 text-sm leading-relaxed text-slate-600">
               {{ currentCard.definition }}
             </p>
-            <p v-else class="text-base sm:text-lg text-gray-400 italic">暂无释义</p>
-          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4">
+          <button class="red-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-red-200/60" @click="goNext">
+            <Heart class="h-6 w-6" />
+            <span class="text-sm font-black">忘记</span>
+            <span class="text-[10px] text-white/75">1 天后复习</span>
+          </button>
+          <button class="warm-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-amber-200/60" @click="goNext">
+            <Star class="h-6 w-6" />
+            <span class="text-sm font-black">模糊</span>
+            <span class="text-[10px] text-white/75">3 天后复习</span>
+          </button>
+          <button class="green-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-green-200/60" @click="goNext">
+            <Trees class="h-6 w-6" />
+            <span class="text-sm font-black">认识</span>
+            <span class="text-[10px] text-white/75">7 天后复习</span>
+          </button>
         </div>
 
         <div class="flex justify-between gap-3">
           <button
-            class="inline-flex items-center justify-center gap-2 flex-1 px-4 py-3 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            class="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-white px-4 text-sm font-bold text-slate-500 disabled:opacity-40"
             :disabled="currentIndex === 0"
             @click="goPrevious"
           >
-            <ArrowLeft class="w-4 h-4" />
+            <ArrowLeft class="h-4 w-4" />
             上一词
           </button>
           <button
-            class="inline-flex items-center justify-center gap-2 flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors cursor-pointer"
+            class="blue-gradient inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold text-white"
             @click="goNext"
           >
             {{ currentIndex === cards.length - 1 ? '完成' : '下一词' }}
-            <ArrowRight class="w-4 h-4" />
+            <ArrowRight class="h-4 w-4" />
           </button>
         </div>
       </div>
     </div>
+    <BottomNav />
   </div>
 </template>

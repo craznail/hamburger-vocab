@@ -2,9 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
-import { CheckCircle, XCircle, BarChart3 } from 'lucide-vue-next'
+import { BarChart3, CheckCircle, Settings } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
 import FlashCard from '../components/FlashCard.vue'
+import BottomNav from '../components/BottomNav.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,7 +19,7 @@ const sessionDone = ref(false)
 const deckId = computed(() => route.query.deckId || null)
 const currentCard = computed(() => cards.value[currentIndex.value] || null)
 const progress = computed(() => ({
-  current: currentIndex.value + 1,
+  current: cards.value.length === 0 ? 0 : currentIndex.value + 1,
   total: cards.value.length
 }))
 
@@ -46,8 +47,12 @@ onMounted(async () => {
 })
 
 async function loadCards() {
-  cards.value = await store.getTodayLearningCards(deckId.value)
-  cards.value = shuffle(cards.value)
+  try {
+    cards.value = shuffle(await store.getTodayLearningCards(deckId.value))
+  } catch (e) {
+    console.warn('加载学习卡片失败（预览模式时正常）:', e)
+    cards.value = []
+  }
   if (cards.value.length === 0) {
     sessionDone.value = true
   }
@@ -85,59 +90,69 @@ async function continueStudy() {
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col">
+  <div class="app-page flex min-h-screen flex-col">
     <NavBar @back="goHome">
-      <template #right>
-        <div v-if="!sessionDone" class="text-sm text-gray-400">
-          {{ progress.current }} / {{ progress.total }}
+      <template #left>
+        <div v-if="!sessionDone">
+          <h1 class="text-sm font-black text-ink">闪卡学习</h1>
+          <p class="mt-1 text-xs text-slate-400">{{ progress.current }} / {{ progress.total }}</p>
         </div>
+      </template>
+      <template #right>
+        <button v-if="!sessionDone" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm" title="设置">
+          <Settings class="h-5 w-5" />
+        </button>
       </template>
     </NavBar>
 
-    <!-- Content -->
-    <div class="flex-1 flex flex-col pt-1 sm:pt-2">
-      <!-- Session Done -->
-      <div v-if="sessionDone" class="text-center w-full max-w-lg sm:max-w-xl mx-auto">
-        <div v-if="cards.length === 0" class="py-12">
-          <CheckCircle class="w-16 h-16 mx-auto mb-4 text-green-400" />
-          <h2 class="text-xl font-semibold text-gray-700 mb-2">今日无待复习</h2>
-          <p class="text-gray-400 mb-6">所有卡片已复习完毕，明天再来吧</p>
+    <div v-if="!sessionDone && progress.total > 0" class="px-5">
+      <div class="progress-track h-1.5">
+        <div class="progress-fill" :style="{ width: `${Math.round((progress.current / progress.total) * 100)}%` }" />
+      </div>
+    </div>
+
+    <div class="flex flex-1 flex-col px-5 pt-5">
+      <div v-if="sessionDone" class="flex flex-1 items-center justify-center text-center">
+        <div v-if="cards.length === 0" class="soft-panel w-full rounded-2xl p-8">
+          <CheckCircle class="mx-auto mb-4 h-16 w-16 text-green-400" />
+          <h2 class="mb-2 text-xl font-black text-ink">今日无待复习</h2>
+          <p class="mb-6 text-sm text-slate-400">所有卡片已复习完毕，明天再来吧</p>
           <button
-            class="px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors cursor-pointer"
+            class="blue-gradient h-11 rounded-xl px-6 text-sm font-bold text-white"
             @click="goHome"
           >
             返回首页
           </button>
         </div>
-        <div v-else class="py-6">
-          <BarChart3 class="w-16 h-16 mx-auto mb-4 text-blue-400" />
-          <h2 class="text-xl font-semibold text-gray-700 mb-1">今日学习完成</h2>
-          <p class="text-gray-400 mb-6">共复习 {{ cards.length }} 张卡片</p>
+        <div v-else class="soft-panel w-full rounded-2xl p-8">
+          <BarChart3 class="mx-auto mb-4 h-16 w-16 text-blue-400" />
+          <h2 class="mb-1 text-xl font-black text-ink">今日学习完成</h2>
+          <p class="mb-6 text-sm text-slate-400">共复习 {{ cards.length }} 张卡片</p>
 
-          <div class="flex justify-center gap-6 mb-6">
+          <div class="mb-6 grid grid-cols-3 gap-3">
             <div class="text-center">
-              <div class="text-2xl font-bold text-green-500">{{ masteredCount }}</div>
-              <div class="text-xs text-gray-400">掌握</div>
+              <div class="text-2xl font-black text-green-500">{{ masteredCount }}</div>
+              <div class="text-xs text-slate-400">认识</div>
             </div>
             <div class="text-center">
-              <div class="text-2xl font-bold text-amber-400">{{ hazyCount }}</div>
-              <div class="text-xs text-gray-400">模糊</div>
+              <div class="text-2xl font-black text-amber-400">{{ hazyCount }}</div>
+              <div class="text-xs text-slate-400">模糊</div>
             </div>
             <div class="text-center">
-              <div class="text-2xl font-bold text-red-500">{{ forgotCount }}</div>
-              <div class="text-xs text-gray-400">忘了</div>
+              <div class="text-2xl font-black text-red-500">{{ forgotCount }}</div>
+              <div class="text-xs text-slate-400">忘记</div>
             </div>
           </div>
 
-          <div class="flex gap-3 justify-center">
+          <div class="flex justify-center gap-3">
             <button
-              class="px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors cursor-pointer"
+              class="blue-gradient h-11 rounded-xl px-6 text-sm font-bold text-white"
               @click="continueStudy"
             >
               继续学习
             </button>
             <button
-              class="px-6 py-2.5 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+              class="h-11 rounded-xl border border-blue-100 bg-white px-6 text-sm font-bold text-slate-500"
               @click="goHome"
             >
               返回首页
@@ -146,7 +161,6 @@ async function continueStudy() {
         </div>
       </div>
 
-      <!-- Active Study -->
       <template v-else-if="currentCard">
         <FlashCard
           :key="currentCard.id"
@@ -158,5 +172,6 @@ async function continueStudy() {
         />
       </template>
     </div>
+    <BottomNav />
   </div>
 </template>

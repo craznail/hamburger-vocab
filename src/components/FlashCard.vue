@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { Volume2, Loader, VolumeX } from 'lucide-vue-next'
+import { Heart, Loader, Star, Trees, Volume2, VolumeX } from 'lucide-vue-next'
 import { speakWord } from '../platform/tts.js'
 
 const props = defineProps({
@@ -30,79 +30,79 @@ function speak(event) {
 
 <template>
   <div
-    class="relative w-full mx-auto bg-white shadow-lg flex flex-col overflow-hidden cursor-pointer select-none"
+    class="flex w-full flex-1 flex-col select-none"
     @click="toggleReveal"
     @keydown.space.prevent="toggleReveal"
     tabindex="0"
   >
-      <!-- Progress bar - flush top, inside card -->
-      <div v-if="total > 0" class="w-full flex-shrink-0 h-1.5 bg-gray-200 overflow-hidden">
-        <div
-          class="h-full bg-blue-500 transition-all duration-300"
-          :style="{ width: `${Math.round((current / total) * 100)}%` }"
-        />
-      </div>
+      <div class="soft-panel relative flex min-h-[312px] flex-1 flex-col justify-center overflow-hidden rounded-[24px] px-5 py-8 text-center">
+        <div class="absolute -bottom-7 -right-5 h-32 w-32 rounded-[2rem] bg-blue-50 rotate-12" />
+        <div class="absolute bottom-8 right-10 h-16 w-16 rounded-2xl border border-blue-100 bg-white/60" />
+        <span class="mx-auto mb-5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600">问题</span>
 
-      <!-- Content area -->
-      <div class="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 md:px-8">
-        <div class="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-5 md:mb-6">
-          <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-800">{{ card.word }}</h2>
+        <div class="relative mb-4 flex items-center justify-center gap-2">
+          <h2 class="max-w-[260px] text-2xl font-black leading-snug text-ink">{{ card.word }}</h2>
           <button
-            class="p-2 sm:p-3 rounded-full hover:bg-gray-100 text-gray-400 hover:text-blue-500 transition-colors"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-500 transition-colors hover:bg-blue-100"
             @click="speak"
             :title="ttsState === 'unavailable' ? 'TTS 不可用' : '发音'"
             :disabled="ttsState === 'loading'"
           >
-            <Loader v-if="ttsState === 'loading'" class="w-6 h-6 sm:w-7 sm:h-7 animate-spin" />
-            <VolumeX v-else-if="ttsState === 'unavailable'" class="w-6 h-6 sm:w-7 sm:h-7 text-gray-300" />
-            <Volume2 v-else class="w-6 h-6 sm:w-7 sm:h-7" />
+            <Loader v-if="ttsState === 'loading'" class="h-4 w-4 animate-spin" />
+            <VolumeX v-else-if="ttsState === 'unavailable'" class="h-4 w-4 text-slate-300" />
+            <Volume2 v-else class="h-4 w-4" />
           </button>
         </div>
 
-        <!-- TTS unavailable hint -->
-        <p v-if="ttsState === 'unavailable'" class="text-xs text-gray-400 mt-1">发音不可用，请检查网络或 TTS 设置</p>
+        <p v-if="!revealed" class="relative text-xs text-slate-400">点击卡片查看答案</p>
+        <p v-if="ttsState === 'unavailable'" class="relative mt-2 text-xs text-slate-400">发音不可用，请检查网络或 TTS 设置</p>
 
         <transition name="reveal">
-          <div v-if="revealed" class="flex flex-col items-center">
+          <div v-if="revealed" class="relative flex flex-col items-center">
             <div
               v-if="card.inflections && card.inflections.length"
-              class="text-xl sm:text-2xl md:text-3xl lg:text-4xl text-gray-500 mb-3 sm:mb-4 md:mb-5"
+              class="mb-3 text-sm font-semibold text-blue-500"
             >
               {{ card.inflections.join(' · ') }}
             </div>
             <p
               v-if="card.definition"
-              class="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 leading-relaxed text-center px-2"
+              class="px-2 text-base leading-relaxed text-slate-600"
             >
               {{ card.definition }}
             </p>
-            <p v-else class="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-400 italic">暂无释义</p>
+            <p v-else class="text-base text-slate-400">暂无释义</p>
           </div>
         </transition>
       </div>
 
-      <!-- Rating buttons -->
-      <div class="flex gap-3 w-full px-4 sm:px-6 md:px-8 pb-5 sm:pb-7 md:pb-9" @click.stop>
+      <div class="grid grid-cols-3 gap-4 pt-5" @click.stop>
         <button
-          class="flex-1 py-2 sm:py-2.5 md:py-3 rounded-xl text-white font-medium text-sm sm:text-base bg-red-500 disabled:bg-gray-300 hover:bg-red-600 disabled:hover:bg-gray-300 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed"
+          class="red-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-red-200/60 disabled:grayscale disabled:opacity-45"
           :disabled="!revealed"
           @click="emit('rate', 0)"
         >
-          忘了
+          <Heart class="h-6 w-6" />
+          <span class="text-sm font-black">忘记</span>
+          <span class="text-[10px] text-white/75">1 天后复习</span>
         </button>
         <button
-          class="flex-1 py-2 sm:py-2.5 md:py-3 rounded-xl text-white font-medium text-sm sm:text-base bg-amber-400 disabled:bg-gray-300 hover:bg-amber-500 disabled:hover:bg-gray-300 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed"
+          class="warm-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-amber-200/60 disabled:grayscale disabled:opacity-45"
           :disabled="!revealed"
           @click="emit('rate', 3)"
         >
-          模糊
+          <Star class="h-6 w-6" />
+          <span class="text-sm font-black">模糊</span>
+          <span class="text-[10px] text-white/75">3 天后复习</span>
         </button>
         <button
-          class="flex-1 py-2 sm:py-2.5 md:py-3 rounded-xl text-white font-medium text-sm sm:text-base bg-green-500 disabled:bg-gray-300 hover:bg-green-600 disabled:hover:bg-gray-300 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed"
+          class="green-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-green-200/60 disabled:grayscale disabled:opacity-45"
           :disabled="!revealed"
           @click="emit('rate', 5)"
         >
-          掌握
+          <Trees class="h-6 w-6" />
+          <span class="text-sm font-black">认识</span>
+          <span class="text-[10px] text-white/75">7 天后复习</span>
         </button>
       </div>
     </div>

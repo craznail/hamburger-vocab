@@ -12,6 +12,36 @@ const routes = [
     component: () => import('../pages/StudyPage.vue')
   },
   {
+    path: '/library',
+    name: 'Library',
+    component: () => import('../pages/LibraryPage.vue')
+  },
+  {
+    path: '/stats',
+    name: 'Stats',
+    component: () => import('../pages/StatsPage.vue')
+  },
+  {
+    path: '/achievements',
+    name: 'Achievements',
+    component: () => import('../pages/AchievementPage.vue')
+  },
+  {
+    path: '/import',
+    name: 'Import',
+    component: () => import('../pages/ImportPage.vue')
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: () => import('../pages/SettingsPage.vue')
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('../pages/ProfilePage.vue')
+  },
+  {
     path: '/dictation',
     name: 'Dictation',
     component: () => import('../pages/DictationPage.vue')
