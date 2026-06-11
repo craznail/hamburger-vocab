@@ -1,8 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { Upload } from 'lucide-vue-next'
-import { open } from '@tauri-apps/plugin-dialog'
-import { readTxtFile } from '../services/database.js'
+import { pickFile, readTxtFile } from '../platform/file'
 
 const emit = defineEmits(['file-selected'])
 const isProcessing = ref(false)
@@ -12,47 +11,15 @@ async function handleFileOpen() {
   isProcessing.value = true
 
   try {
-    const selected = await open({
-      multiple: false,
-      filters: [{ name: 'Text Files', extensions: ['txt'] }]
-    })
+    const result = await pickFile()
 
-    if (!selected) {
+    if (!result) {
       isProcessing.value = false
       return
     }
 
-    const filePath = typeof selected === 'string' ? selected : selected.path
-
-    // Get display name
-    let fileName
-
-    // 1) Android: query ContentResolver directly via JS bridge
-    if (window.NativeFileResolver) {
-      fileName = window.NativeFileResolver.getDisplayName(filePath)
-    }
-
-    // 2) Fallback: try stat() (works for content:// URIs)
-    if (!fileName) {
-      try {
-        const { stat } = await import('@tauri-apps/plugin-fs')
-        const info = await stat(filePath)
-        fileName = info.name
-      } catch {}
-    }
-
-    // 3) Last resort: extract last path segment
-    if (!fileName) {
-      fileName = filePath.split(/[/\\]/).pop()
-    }
-
-    // Guard: if name is still a URI/ID (has : or URL encoding), use timestamp
-    if (!fileName || fileName.includes(':') || /%[0-9A-Fa-f]{2}/.test(fileName)) {
-      fileName = String(new Date().getFullYear()) + '.txt'
-    }
-
-    const content = await readTxtFile(filePath)
-    emit('file-selected', fileName, content)
+    const content = await readTxtFile(result.path)
+    emit('file-selected', result.name, content)
   } catch (e) {
     console.error('File open error:', e)
     alert('无法读取文件：' + e)

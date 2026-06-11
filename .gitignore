@@ -14,3 +14,13 @@ src-tauri/gen/
 
 # Env
 .env
+
+# IDE / Build tooling
+.vs/
+.trae/
+.rust-toolchain/
+cargo.exe
+rustc.exe
+build_rust.bat
+run_rust.ps1
+clean_build.bat

@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { Volume2, Loader, VolumeX } from 'lucide-vue-next'
-import { speakWord } from '../utils/speech.js'
+import { speakWord } from '../platform/tts.js'
 
 const props = defineProps({
   card: { type: Object, required: true },

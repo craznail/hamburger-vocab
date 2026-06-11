@@ -5,12 +5,12 @@ import { useAppStore } from '../stores/useAppStore'
 import { BookOpen, Plus, Book, CheckCircle, Clock, ArrowRight, Download, Volume2, Play, Loader, VolumeX } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
 import FileUpload from '../components/FileUpload.vue'
-import { speakWord } from '../utils/speech.js'
+import { speakWord } from '../platform/tts.js'
 import ImportPreview from '../components/ImportPreview.vue'
 
 const router = useRouter()
 const store = useAppStore()
-import { downloadDB } from '../services/database.js'
+import { downloadDB } from '../api/card'
 
 const ttsWord = ref('')
 const ttsState = ref('idle')
@@ -34,8 +34,8 @@ function testTTS() {
   })
 }
 
-function onFileSelected(fileName, text) {
-  const result = store.importFile(fileName, text)
+async function onFileSelected(fileName, text) {
+  const result = await store.importFile(fileName, text)
   if (!result.success) {
     alert(result.error)
     return

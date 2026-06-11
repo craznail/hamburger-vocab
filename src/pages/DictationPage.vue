@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, CheckCircle, Eye, Home, Loader, Pause, Play, RotateCcw, Settings, Volume2, VolumeX } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
-import { speakWord } from '../utils/speech.js'
+import { speakWord } from '../platform/tts.js'
 import NavBar from '../components/NavBar.vue'
 
 const route = useRoute()

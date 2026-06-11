@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
 import { Book, Search, Trash2, Play, CheckCircle, Clock, Loader, Volume2, VolumeX } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
-import { speakWord } from '../utils/speech.js'
+import { speakWord } from '../platform/tts.js'
 
 const route = useRoute()
 const router = useRouter()

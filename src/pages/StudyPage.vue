@@ -57,11 +57,7 @@ async function handleRate(quality) {
   if (!currentCard.value) return
 
   const card = currentCard.value
-  await store.rateCard(card.id, quality, {
-    ef: card.ef,
-    interval: card.interval,
-    repetitions: card.repetitions
-  })
+  await store.rateCard(card.id, quality)
 
   sessionResults.value.push({
     word: card.word,
