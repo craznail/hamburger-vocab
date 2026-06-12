@@ -77,142 +77,125 @@ function getDeckDue(deck) {
             <Brain class="h-6 w-6" />
           </div>
           <div class="min-w-0">
-            <h1 class="text-xl font-black leading-none text-ink">Recall</h1>
-            <p class="mt-1 truncate text-xs font-medium text-slate-400">把知识变成长久记忆</p>
+            <h1 class="text-[1.65rem] font-black leading-none text-ink">Recall</h1>
+            <p class="mt-1 truncate text-[12px] font-semibold text-slate-400">把任何知识变成长久记忆</p>
           </div>
         </div>
       </template>
       <template #right>
-        <button class="flex h-10 w-10 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-blue-600 shadow-sm" title="导入" @click="goImport">
+        <button class="grid h-10 w-10 place-items-center rounded-full border border-[#d9e5ff] bg-white text-blue-600 shadow-[0_10px_20px_rgba(95,126,194,0.08)]" title="导入" @click="goImport">
           <Plus class="h-5 w-5" />
         </button>
       </template>
     </NavBar>
 
-    <div class="flex-1 px-5 pb-8 pt-4">
-      <div class="mb-4">
-        <p class="section-kicker">TODAY</p>
-        <h2 class="mt-1 text-2xl font-black text-ink">晚上好，继续保持</h2>
+    <div class="flex-1 px-4 pb-8 pt-4">
+      <div class="mb-4 px-1">
+        <h2 class="text-[2rem] font-black tracking-[-0.03em] text-ink">晚上好！</h2>
+        <p class="mt-1 text-sm font-medium text-slate-400">愿你今天也有所收获</p>
       </div>
 
-      <section class="home-hero p-4 text-white">
-        <div class="grid grid-cols-[minmax(0,1fr)_104px] gap-4">
-          <div class="min-w-0">
-            <div class="flex items-center gap-2 text-sm font-semibold text-blue-100">
-              <CheckSquare class="h-4 w-4" />
-              今日待复习
+      <section class="mb-4 grid gap-4">
+        <div class="glass-card relative overflow-hidden px-4 py-4">
+          <div class="grid grid-cols-[minmax(0,1fr)_138px] gap-3">
+            <div class="flex min-w-0 flex-col justify-between">
+              <div>
+                <div class="mb-3 flex items-center gap-2 text-sm font-bold text-[#ff8d46]">
+                  <Flame class="h-4 w-4" />
+                  连续学习
+                </div>
+                <div class="flex items-end gap-2">
+                  <span class="text-5xl font-black leading-none text-ink">12</span>
+                  <span class="pb-1 text-base font-bold text-ink-soft">天</span>
+                </div>
+                <p class="mt-2 text-xs leading-5 text-slate-400">再接再厉，冲击更高纪录</p>
+              </div>
             </div>
-            <div class="mt-3 flex items-end gap-2">
-              <span class="text-5xl font-black leading-none">{{ store.todayCount }}</span>
-              <span class="pb-1 text-sm font-semibold text-blue-100">张卡片</span>
+            <div class="study-buddy min-h-[152px]">
+              <div class="buddy-head">
+                <span />
+              </div>
+              <div class="buddy-book" />
+              <div class="absolute right-2 top-2 rounded-full bg-[#ff7e47] px-3 py-1 text-[10px] font-black text-white shadow-lg shadow-orange-300/40">加油呀</div>
+              <Sparkles class="absolute bottom-5 right-4 h-5 w-5 text-amber-300" />
             </div>
-            <p class="mt-2 text-xs text-blue-100/90">预计 {{ Math.max(1, Math.ceil(store.todayCount / 6)) }} 分钟完成</p>
           </div>
-          <div class="study-buddy">
-            <div class="buddy-head">
-              <span />
+
+          <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(90,132,255,0.08),transparent_42%)]" />
+        </div>
+
+        <div class="home-hero p-5 text-white">
+          <div class="grid grid-cols-[minmax(0,1fr)_110px] gap-4">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 text-sm font-bold text-blue-100">
+                <CheckSquare class="h-4 w-4" />
+                今日待复习
+              </div>
+              <div class="mt-4 flex items-end gap-2">
+                <span class="text-6xl font-black leading-none">{{ store.todayCount }}</span>
+                <span class="pb-2 text-sm font-semibold text-blue-100">张卡片</span>
+              </div>
+              <p class="mt-2 text-sm text-blue-100/90">预计耗时 {{ Math.max(1, Math.ceil(store.todayCount / 6)) }} 分钟</p>
             </div>
-            <div class="buddy-book" />
-            <Sparkles class="absolute bottom-4 right-3 h-5 w-5 text-amber-300" />
-          </div>
-        </div>
-        <button
-          class="primary-action mt-4 w-full text-sm"
-          :disabled="store.todayCount === 0"
-          @click="goStudy()"
-        >
-          {{ store.todayCount === 0 ? '今日任务已完成' : '开始今日复习' }}
-          <ArrowRight class="h-4 w-4" />
-        </button>
-      </section>
-
-      <section class="mt-3 flex items-center justify-between border-b border-slate-200 px-1 pb-4 pt-1">
-        <div class="flex items-center gap-2">
-          <Flame class="h-5 w-5 text-orange-500" />
-          <span class="text-sm font-bold text-ink">连续学习 12 天</span>
-        </div>
-        <span class="text-xs font-medium text-slate-400">{{ store.decks.length }} 个知识库</span>
-      </section>
-
-      <section class="mt-5">
-        <div class="mb-3">
-          <p class="section-kicker">QUICK START</p>
-          <h2 class="mt-1 text-base font-black text-ink">选择学习方式</h2>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-        <button
-          class="soft-panel action-tile flex items-center gap-3 p-3 text-left"
-          @click="goDictation"
-        >
-          <span class="icon-well bg-blue-50 text-blue-600">
-            <Volume2 class="h-5 w-5" />
-          </span>
-          <span class="min-w-0">
-            <span class="block text-sm font-bold text-ink">听写模式</span>
-            <span class="mt-1 block text-xs muted">边听边写</span>
-          </span>
-        </button>
-        <button
-          class="soft-panel action-tile flex items-center gap-3 p-3 text-left"
-          @click="goStudy()"
-        >
-          <span class="icon-well bg-emerald-50 text-emerald-600">
-            <GraduationCap class="h-5 w-5" />
-          </span>
-          <span class="min-w-0">
-            <span class="block text-sm font-bold text-ink">闪卡学习</span>
-            <span class="mt-1 block text-xs muted">智能复习</span>
-          </span>
-        </button>
-        </div>
-      </section>
-
-      <section class="mt-6">
-        <div class="mb-3 flex items-center justify-between">
-          <div>
-            <p class="section-kicker">LIBRARY</p>
-            <h2 class="mt-1 text-base font-black text-ink">我的知识库</h2>
+            <div class="flex items-center justify-center">
+              <div class="relative h-[120px] w-[100px] rounded-[26px] bg-white/18 shadow-[inset_0_1px_0_rgba(255,255,255,0.24)]">
+                <div class="absolute left-1/2 top-5 h-[82px] w-[62px] -translate-x-1/2 rounded-[18px] bg-white/95 shadow-[0_16px_32px_rgba(20,54,170,0.16)]" />
+                <div class="absolute left-1/2 top-10 h-1 w-9 -translate-x-1/2 rounded-full bg-blue-300/70" />
+                <div class="absolute left-1/2 top-[3.4rem] h-1 w-10 -translate-x-1/2 rounded-full bg-blue-200/75" />
+                <div class="absolute left-1/2 top-[4.25rem] h-1 w-8 -translate-x-1/2 rounded-full bg-blue-200/65" />
+                <div class="absolute bottom-5 right-4 h-10 w-10 rounded-2xl bg-white/28" />
+              </div>
+            </div>
           </div>
           <button
-            class="flex items-center gap-1 text-xs font-semibold text-blue-600"
+            class="primary-action mt-5 w-full text-sm"
+            :disabled="store.todayCount === 0"
+            @click="goStudy()"
+          >
+            {{ store.todayCount === 0 ? '今日任务已完成' : '开始学习' }}
+            <ArrowRight class="h-4 w-4" />
+          </button>
+        </div>
+      </section>
+
+      <section class="mb-4">
+        <div class="mb-3 flex items-center justify-between px-1">
+          <div>
+            <h2 class="text-base font-black text-ink">我的知识库</h2>
+          </div>
+          <button
+            class="flex items-center gap-1 text-xs font-bold text-slate-400"
             @click="goLibrary"
           >
             查看全部
             <ArrowRight class="h-3.5 w-3.5" />
           </button>
         </div>
-        <div v-if="store.decks.length > 0" class="space-y-3">
-          <div
+
+        <div v-if="store.decks.length > 0" class="soft-panel overflow-hidden px-4 py-3">
+          <button
             v-for="deck in store.sortedDecks.slice(0, 3)"
             :key="deck.id"
-            class="soft-panel interactive-surface cursor-pointer p-4"
+            class="flex w-full items-center gap-3 border-b border-[#edf2ff] py-3 text-left last:border-b-0"
             @click="goDeckDetail(deck.id)"
           >
-            <div class="flex items-center gap-3">
-              <div class="deck-gem flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-sm">
-                <BookOpen class="h-6 w-6" />
+            <div class="deck-gem grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white">
+              <BookOpen class="h-5 w-5" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-3">
+                <h3 class="truncate text-sm font-black text-ink">{{ deck.name }}</h3>
+                <span class="text-xs font-bold text-slate-400">{{ getTotalMasteredRatio(deck) }}%</span>
               </div>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center justify-between gap-3">
-                  <h3 class="truncate text-sm font-bold text-ink">{{ deck.name }}</h3>
-                  <ArrowRight class="h-4 w-4 shrink-0 text-slate-300" />
+              <p class="mt-1 text-xs font-medium text-slate-400">{{ getDeckMastered(deck) }} / {{ getDeckTotal(deck) }}</p>
+              <div class="mt-2 flex items-center gap-3">
+                <div class="progress-track h-1.5 flex-1">
+                  <div class="progress-fill transition-all" :style="{ width: `${getTotalMasteredRatio(deck)}%` }" />
                 </div>
-                <div class="mt-1 flex items-center gap-2 text-xs muted">
-                  <span>{{ getDeckMastered(deck) }} / {{ getDeckTotal(deck) }}</span>
-                  <span v-if="getDeckDue(deck) > 0" class="text-amber-500">今日 {{ getDeckDue(deck) }}</span>
-                </div>
-                <div class="mt-2 flex items-center gap-2">
-                  <div class="progress-track h-1.5 flex-1">
-                    <div
-                      class="progress-fill transition-all"
-                      :style="{ width: `${getTotalMasteredRatio(deck)}%` }"
-                    />
-                  </div>
-                  <span class="w-9 text-right text-xs font-semibold text-blue-500">{{ getTotalMasteredRatio(deck) }}%</span>
-                </div>
+                <span class="text-[11px] font-semibold text-slate-400">今日 {{ getDeckDue(deck) }}</span>
               </div>
             </div>
-          </div>
+          </button>
         </div>
 
         <div v-else class="soft-panel p-7 text-center">
@@ -222,8 +205,43 @@ function getDeckDue(deck) {
         </div>
       </section>
 
-      <section class="soft-panel mt-5 p-4">
-        <div class="mb-3 flex items-center gap-2 text-sm font-bold text-ink">
+      <section class="mb-4">
+        <div class="mb-3 flex items-center justify-between px-1">
+          <div>
+            <h2 class="text-base font-black text-ink">学习方式</h2>
+            <p class="mt-1 text-xs font-medium text-slate-400">按你喜欢的节奏开始</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <button
+            class="soft-panel action-tile flex items-center gap-3 p-4 text-left"
+            @click="goDictation"
+          >
+            <span class="icon-well bg-blue-50 text-blue-600">
+              <Volume2 class="h-5 w-5" />
+            </span>
+            <span class="min-w-0">
+              <span class="block text-sm font-black text-ink">听写模式</span>
+              <span class="mt-1 block text-xs muted">边听边写</span>
+            </span>
+          </button>
+          <button
+            class="soft-panel action-tile flex items-center gap-3 p-4 text-left"
+            @click="goStudy()"
+          >
+            <span class="icon-well bg-emerald-50 text-emerald-600">
+              <GraduationCap class="h-5 w-5" />
+            </span>
+            <span class="min-w-0">
+              <span class="block text-sm font-black text-ink">闪卡学习</span>
+              <span class="mt-1 block text-xs muted">智能复习</span>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <section class="soft-panel p-4">
+        <div class="mb-3 flex items-center gap-2 text-sm font-black text-ink">
           <Volume2 class="h-4 w-4 text-blue-500" />
           快速发音测试
         </div>
@@ -234,12 +252,12 @@ function getDeckDue(deck) {
               v-model="ttsWord"
               type="text"
               placeholder="输入单词"
-              class="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-ink outline-none transition-colors focus:border-blue-300 focus:bg-white"
+              class="input-soft h-12 w-full pl-9 pr-3 text-sm text-ink outline-none focus:border-blue-300 focus:bg-white"
               @keyup.enter="testTTS"
             />
           </div>
           <button
-            class="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
+            class="blue-gradient flex h-12 w-12 items-center justify-center rounded-[18px] text-white shadow-[0_12px_22px_rgba(53,100,255,0.22)] disabled:opacity-50"
             :disabled="ttsState === 'loading' || !ttsWord.trim()"
             @click="testTTS"
             title="播放发音"

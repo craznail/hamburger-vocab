@@ -31,22 +31,22 @@ function isActive(item) {
 </script>
 
 <template>
-  <nav class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/92 px-3 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-1.5 shadow-[0_-8px_24px_rgba(31,43,74,0.06)] backdrop-blur-xl">
-    <div class="mx-auto grid max-w-2xl grid-cols-5 gap-1">
+  <nav class="fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2">
+    <div class="mx-auto grid max-w-2xl grid-cols-5 gap-1 rounded-[28px] border border-white/70 bg-white/88 px-2 py-2 shadow-[0_-14px_34px_rgba(80,107,173,0.08)] backdrop-blur-2xl">
       <button
         v-for="item in items"
         :key="item.label"
-        class="relative flex min-w-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-[11px] font-semibold transition-colors"
-        :class="isActive(item) ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'"
+        class="relative flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-[11px] font-semibold transition-colors"
+        :class="isActive(item) ? 'bg-[#f1f5ff] text-blue-600' : 'text-slate-400 hover:text-slate-600'"
         @click="go(item)"
       >
         <span
-          class="absolute top-0 h-0.5 w-5 rounded-full bg-blue-600 transition-opacity"
+          class="absolute top-1 h-1 w-6 rounded-full bg-blue-600 transition-opacity"
           :class="isActive(item) ? 'opacity-100' : 'opacity-0'"
         />
         <component
           :is="item.icon"
-          class="h-[22px] w-[22px]"
+          class="h-[21px] w-[21px]"
           :stroke-width="isActive(item) ? 2.6 : 2"
         />
         <span class="truncate">{{ item.label }}</span>

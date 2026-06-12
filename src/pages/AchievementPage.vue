@@ -27,12 +27,12 @@ const collectionAchievements = [
   <div class="app-page flex min-h-screen flex-col">
     <NavBar :showBack="false">
       <template #left>
-        <h1 class="text-xl font-black text-ink">成就</h1>
+        <h1 class="page-header-title text-[1.85rem]">成就</h1>
       </template>
     </NavBar>
 
-    <main class="flex-1 px-5 pb-8">
-      <section class="blue-gradient overflow-hidden rounded-2xl p-4 text-white">
+    <main class="flex-1 px-4 pb-8 pt-4">
+      <section class="blue-gradient overflow-hidden rounded-[28px] p-4 text-white shadow-[0_22px_40px_rgba(57,96,223,0.18)]">
         <div class="flex items-center gap-4">
           <div class="grid h-16 w-16 place-items-center rounded-full bg-white/20">
             <Trophy class="h-9 w-9 text-yellow-200" />
@@ -53,7 +53,7 @@ const collectionAchievements = [
           <button class="text-xs font-bold text-slate-400">查看全部</button>
         </div>
         <div class="grid grid-cols-3 gap-3">
-          <div v-for="item in learningAchievements" :key="item.label" class="tiny-card rounded-2xl p-3 text-center">
+          <div v-for="item in learningAchievements" :key="item.label" class="tiny-card p-3 text-center">
             <div class="medal mx-auto grid h-11 w-11 place-items-center rounded-full" :class="item.done ? 'bg-gradient-to-br from-yellow-100 to-amber-300 text-amber-600' : 'bg-gradient-to-br from-slate-50 to-blue-100 text-slate-300'">
               <component :is="item.icon" class="h-6 w-6" />
             </div>
@@ -69,7 +69,7 @@ const collectionAchievements = [
           <button class="text-xs font-bold text-slate-400">查看全部</button>
         </div>
         <div class="grid grid-cols-4 gap-3">
-          <div v-for="(item, index) in collectionAchievements" :key="item.label" class="tiny-card rounded-2xl p-3 text-center">
+          <div v-for="(item, index) in collectionAchievements" :key="item.label" class="tiny-card p-3 text-center">
             <div class="medal mx-auto grid h-12 w-12 place-items-center rounded-full" :class="index < 2 ? 'bg-gradient-to-br from-yellow-100 to-amber-300 text-amber-600' : 'bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-400'">
               <component :is="item.icon" class="h-7 w-7" />
             </div>
@@ -78,7 +78,7 @@ const collectionAchievements = [
         </div>
       </section>
 
-      <button class="soft-panel mt-5 flex w-full items-center justify-center rounded-2xl p-4 text-sm font-bold text-blue-600" @click="router.push({ name: 'Stats' })">
+      <button class="soft-panel mt-5 flex w-full items-center justify-center p-4 text-sm font-bold text-blue-600" @click="router.push({ name: 'Stats' })">
         查看学习统计
       </button>
     </main>

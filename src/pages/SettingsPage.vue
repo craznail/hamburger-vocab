@@ -70,18 +70,18 @@ const groups = [
   <div class="app-page flex min-h-screen flex-col">
     <NavBar @back="router.push({ name: 'Profile' })">
       <template #left>
-        <h1 class="text-xl font-black text-ink">设置</h1>
+        <h1 class="page-header-title text-[1.7rem]">设置</h1>
       </template>
     </NavBar>
 
-    <main class="flex-1 px-5 pb-8">
+    <main class="flex-1 px-4 pb-8 pt-4">
       <section class="mb-5">
         <div class="mb-2 flex items-center justify-between px-1">
           <h2 class="text-xs font-bold text-slate-400">语音服务</h2>
           <span class="text-[11px] font-semibold text-blue-500">可随时切换</span>
         </div>
 
-        <div class="soft-panel overflow-hidden rounded-2xl p-4">
+        <div class="soft-panel overflow-hidden p-4">
           <div class="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
             <button
               v-for="provider in TTS_PROVIDERS"
@@ -238,7 +238,7 @@ const groups = [
       <section v-for="group in groups" :key="group.title" class="mb-5">
         <h2 class="mb-2 px-1 text-xs font-bold text-slate-400">{{ group.title }}</h2>
         <div class="soft-panel overflow-hidden rounded-2xl">
-          <button v-for="item in group.items" :key="item.label" class="flex w-full items-center gap-3 border-b border-blue-50 px-4 py-3 text-left last:border-b-0" @click="item.action?.()">
+          <button v-for="item in group.items" :key="item.label" class="flex w-full items-center gap-3 border-b border-blue-50 px-4 py-3.5 text-left last:border-b-0" @click="item.action?.()">
             <span class="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-500">
               <component :is="item.icon || SettingsIcon" class="h-4 w-4" />
             </span>

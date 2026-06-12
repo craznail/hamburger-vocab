@@ -52,31 +52,33 @@ function openDeck(deckId) {
   <div class="app-page flex min-h-screen flex-col">
     <NavBar :showBack="false">
       <template #left>
-        <h1 class="text-xl font-black text-ink">我的知识库</h1>
+        <div>
+          <h1 class="page-header-title text-[1.9rem]">我的知识库</h1>
+        </div>
       </template>
       <template #right>
         <div class="flex items-center gap-2">
-          <button class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600" title="导入" @click="router.push({ name: 'Import' })">
+          <button class="grid h-10 w-10 place-items-center rounded-full border border-[#d9e5ff] bg-white text-blue-600 shadow-[0_10px_20px_rgba(95,126,194,0.08)]" title="导入" @click="router.push({ name: 'Import' })">
             <Plus class="h-5 w-5" />
           </button>
-          <button class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm" title="搜索">
+          <button class="grid h-10 w-10 place-items-center rounded-full border border-[#d9e5ff] bg-white text-slate-400 shadow-[0_10px_20px_rgba(95,126,194,0.08)]" title="搜索">
             <Search class="h-5 w-5" />
           </button>
         </div>
       </template>
     </NavBar>
 
-    <main class="flex-1 px-5 pb-8">
+    <main class="flex-1 px-4 pb-8 pt-4">
       <section class="grid grid-cols-3 gap-3">
-        <div class="tiny-card rounded-2xl p-4 text-center">
+        <div class="stat-grid-card p-4 text-center">
           <div class="text-2xl font-black text-blue-600">{{ totals.decks }}</div>
           <div class="mt-1 text-[11px] font-medium text-slate-400">知识库总数</div>
         </div>
-        <div class="tiny-card rounded-2xl p-4 text-center">
+        <div class="stat-grid-card p-4 text-center">
           <div class="text-2xl font-black text-ink">{{ totals.totalCards.toLocaleString() }}</div>
           <div class="mt-1 text-[11px] font-medium text-slate-400">总卡片数</div>
         </div>
-        <div class="tiny-card rounded-2xl p-4 text-center">
+        <div class="stat-grid-card p-4 text-center">
           <div class="text-2xl font-black text-ink">{{ totals.rate }}%</div>
           <div class="mt-1 text-[11px] font-medium text-slate-400">平均掌握率</div>
         </div>
@@ -86,10 +88,10 @@ function openDeck(deckId) {
         <button
           v-for="(deck, index) in store.sortedDecks"
           :key="deck.id"
-          class="soft-panel flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left active:scale-[0.99]"
+          class="card-list-row flex w-full items-center gap-3 px-4 py-3 text-left active:scale-[0.99]"
           @click="openDeck(deck.id)"
         >
-          <span class="deck-gem flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg shadow-blue-100" :class="deckColors[index % deckColors.length]">
+          <span class="deck-gem flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg shadow-blue-100" :class="deckColors[index % deckColors.length]">
             <component :is="deckIcons[index % deckIcons.length]" class="h-6 w-6" />
           </span>
           <span class="min-w-0 flex-1">
@@ -110,7 +112,7 @@ function openDeck(deckId) {
           </span>
         </button>
 
-        <div v-if="store.decks.length === 0" class="soft-panel rounded-2xl p-8 text-center">
+        <div v-if="store.decks.length === 0" class="soft-panel p-8 text-center">
           <BookOpen class="mx-auto mb-3 h-12 w-12 text-blue-200" />
           <p class="text-sm font-bold text-slate-500">还没有知识库</p>
           <button class="blue-gradient mt-5 h-11 rounded-xl px-7 text-sm font-bold text-white" @click="router.push({ name: 'Import' })">

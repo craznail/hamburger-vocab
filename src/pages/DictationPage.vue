@@ -263,7 +263,7 @@ function restartSession() {
       </template>
     </NavBar>
 
-    <div v-if="!loading && !sessionDone && progress.total > 0" class="px-5">
+    <div v-if="!loading && !sessionDone && progress.total > 0" class="px-4 pt-2">
       <div class="progress-track h-1.5">
         <div class="progress-fill" :style="{ width: `${Math.round((progress.current / progress.total) * 100)}%` }" />
       </div>
@@ -302,7 +302,7 @@ function restartSession() {
       </div>
     </div>
 
-    <div v-else-if="currentCard" class="flex flex-1 flex-col px-5 py-5">
+    <div v-else-if="currentCard" class="flex flex-1 flex-col px-4 py-5">
       <div class="flex flex-1 flex-col gap-5">
         <div v-if="showPlaybackSettings" class="soft-panel rounded-2xl p-4">
           <div class="mb-3 flex items-center justify-between">
@@ -352,9 +352,9 @@ function restartSession() {
           </div>
         </div>
 
-        <div class="soft-panel flex-1 rounded-[24px] px-5 py-8 text-center">
+        <div class="soft-panel flex-1 rounded-[32px] px-6 py-8 text-center">
             <div
-              class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full"
+              class="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full"
               :class="isPlaying ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'"
             >
               <Loader v-if="speechState === 'loading'" class="h-8 w-8 animate-spin" />
@@ -362,12 +362,12 @@ function restartSession() {
               <Volume2 v-else class="h-8 w-8" />
             </div>
 
-            <h1 class="mb-1 text-2xl font-black text-ink">{{ answerVisible ? currentCard.word : '听发音，写下单词' }}</h1>
+            <h1 class="mb-1 text-[2rem] font-black tracking-[-0.03em] text-ink">{{ answerVisible ? currentCard.word : '听发音，写下单词' }}</h1>
             <p v-if="answerVisible && currentCard.inflections?.length" class="mb-5 text-sm font-bold text-blue-500">
               {{ currentCard.inflections.join(' · ') }}
             </p>
 
-            <div class="mx-auto my-6 flex h-12 max-w-[260px] items-center justify-center gap-1 text-blue-400">
+            <div class="mx-auto my-8 flex h-12 max-w-[260px] items-center justify-center gap-1 text-blue-400">
               <span v-for="n in 28" :key="n" class="w-1 rounded-full bg-current" :style="{ height: `${12 + ((n * 7) % 28)}px`, opacity: 0.35 + ((n % 5) * 0.12) }" />
             </div>
 
@@ -391,8 +391,8 @@ function restartSession() {
               </button>
             </div>
 
-            <input class="h-14 w-full rounded-xl border border-blue-100 bg-white px-4 text-center text-sm text-ink outline-none focus:border-blue-300" placeholder="请输入你听到的单词" />
-            <p class="mt-4 text-xs text-slate-400">不知道？点击查看答案</p>
+            <input class="input-soft h-14 w-full px-4 text-center text-sm text-ink outline-none focus:border-blue-300" placeholder="请输入你听到的单词" />
+            <p class="mt-4 text-xs font-medium text-slate-400">不知道？点击查看答案</p>
 
             <p v-if="answerVisible && currentCard.definition" class="mt-4 text-sm leading-relaxed text-slate-600">
               {{ currentCard.definition }}

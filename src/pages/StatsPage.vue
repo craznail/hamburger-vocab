@@ -22,34 +22,34 @@ const labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周
   <div class="app-page flex min-h-screen flex-col">
     <NavBar :showBack="false">
       <template #left>
-        <h1 class="text-xl font-black text-ink">学习统计</h1>
+        <h1 class="page-header-title text-[1.85rem]">学习统计</h1>
       </template>
       <template #right>
-        <button class="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600">本周</button>
+        <button class="ghost-button px-3 py-1.5 text-xs font-bold text-blue-600">本周</button>
       </template>
     </NavBar>
 
-    <main class="flex-1 px-5 pb-8">
+    <main class="flex-1 px-4 pb-8 pt-4">
       <section class="grid grid-cols-2 gap-3">
-        <div class="tiny-card rounded-2xl p-4">
+        <div class="stat-grid-card p-4">
           <Clock3 class="mb-2 h-4 w-4 text-blue-500" />
           <div class="text-2xl font-black text-ink">6.8 h</div>
           <p class="mt-1 text-xs text-slate-400">学习时长</p>
           <p class="mt-2 text-xs font-bold text-emerald-500">较上周 ↑ 23%</p>
         </div>
-        <div class="tiny-card rounded-2xl p-4">
+        <div class="stat-grid-card p-4">
           <BookMarked class="mb-2 h-4 w-4 text-emerald-500" />
           <div class="text-2xl font-black text-ink">{{ dueCards || store.todayCount }}</div>
           <p class="mt-1 text-xs text-slate-400">复习卡片</p>
           <p class="mt-2 text-xs font-bold text-emerald-500">较上周 ↑ 18%</p>
         </div>
-        <div class="tiny-card rounded-2xl p-4">
+        <div class="stat-grid-card p-4">
           <Flame class="mb-2 h-4 w-4 text-amber-500" />
           <div class="text-2xl font-black text-ink">{{ totalCards }}</div>
           <p class="mt-1 text-xs text-slate-400">总卡片</p>
           <p class="mt-2 text-xs font-bold text-emerald-500">持续积累中</p>
         </div>
-        <div class="tiny-card rounded-2xl p-4">
+        <div class="stat-grid-card p-4">
           <TrendingUp class="mb-2 h-4 w-4 text-red-500" />
           <div class="text-2xl font-black text-ink">{{ masteryRate }}%</div>
           <p class="mt-1 text-xs text-slate-400">记忆准确率</p>
@@ -57,7 +57,7 @@ const labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周
         </div>
       </section>
 
-      <section class="soft-panel mt-5 rounded-2xl p-4">
+      <section class="soft-panel mt-5 p-4">
         <h2 class="mb-5 text-sm font-black text-ink">学习时长趋势（小时）</h2>
         <div class="flex h-40 items-end justify-between gap-3">
           <div v-for="(bar, index) in bars" :key="labels[index]" class="flex flex-1 flex-col items-center gap-2">
@@ -68,7 +68,7 @@ const labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周
         </div>
       </section>
 
-      <section class="soft-panel mt-5 rounded-2xl p-4">
+      <section class="soft-panel mt-5 p-4">
         <h2 class="mb-4 text-sm font-black text-ink">掌握率分布</h2>
         <div class="flex items-center gap-5">
           <div class="relative grid h-28 w-28 place-items-center rounded-full" :style="{ background: `conic-gradient(#3774ff 0 ${masteryRate}%, #63d471 ${masteryRate}% 78%, #ffba3b 78% 100%)` }">

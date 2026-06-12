@@ -25,13 +25,13 @@ async function onFileSelected(fileName, text) {
   <div class="app-page flex min-h-screen flex-col">
     <NavBar @back="router.push({ name: 'Library' })">
       <template #left>
-        <h1 class="text-xl font-black text-ink">导入</h1>
+        <h1 class="page-header-title text-[1.7rem]">导入</h1>
       </template>
     </NavBar>
 
-    <main class="flex-1 px-5 pb-8">
-      <section class="soft-panel rounded-2xl p-4">
-        <div class="rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 px-4 py-8 text-center">
+    <main class="flex-1 px-4 pb-8 pt-4">
+      <section class="soft-panel p-4">
+        <div class="rounded-[28px] border-2 border-dashed border-blue-200 bg-blue-50/40 px-4 py-8 text-center">
           <div class="mb-5 flex justify-center gap-4">
             <span class="grid h-11 w-11 place-items-center rounded-xl bg-white text-blue-500 shadow-sm"><FileText class="h-5 w-5" /></span>
             <span class="grid h-11 w-11 place-items-center rounded-xl bg-white text-emerald-500 shadow-sm"><FileCode2 class="h-5 w-5" /></span>
@@ -45,7 +45,7 @@ async function onFileSelected(fileName, text) {
           <h2 class="text-sm font-black text-ink">导入历史</h2>
           <button class="text-xs font-bold text-slate-400">查看全部</button>
         </div>
-        <div class="soft-panel flex items-center gap-3 rounded-2xl p-4">
+        <div class="card-list-row flex items-center gap-3 p-4">
           <span class="grid h-11 w-11 place-items-center rounded-xl bg-blue-50 text-blue-500"><Upload class="h-5 w-5" /></span>
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-black text-ink">{{ importResult?.deckName || 'Redis 笔记.txt' }}</p>

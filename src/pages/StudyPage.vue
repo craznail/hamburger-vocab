@@ -94,21 +94,21 @@ async function continueStudy() {
     <NavBar @back="goHome">
       <template #left>
         <div v-if="!sessionDone">
-          <h1 class="text-sm font-black text-ink">闪卡学习</h1>
+          <h1 class="text-sm font-black text-ink">{{ route.query.deckName || '闪卡学习' }}</h1>
           <p class="mt-1 text-xs text-slate-400">{{ progress.current }} / {{ progress.total }}</p>
         </div>
       </template>
     </NavBar>
 
-    <div v-if="!sessionDone && progress.total > 0" class="px-5">
+    <div v-if="!sessionDone && progress.total > 0" class="px-4 pt-2">
       <div class="progress-track h-1.5">
         <div class="progress-fill" :style="{ width: `${Math.round((progress.current / progress.total) * 100)}%` }" />
       </div>
     </div>
 
-    <div class="flex flex-1 flex-col px-5 pt-5">
+    <div class="flex flex-1 flex-col px-4 pt-5">
       <div v-if="sessionDone" class="flex flex-1 items-center justify-center text-center">
-        <div v-if="cards.length === 0" class="soft-panel w-full rounded-2xl p-8">
+        <div v-if="cards.length === 0" class="soft-panel w-full p-8">
           <CheckCircle class="mx-auto mb-4 h-16 w-16 text-green-400" />
           <h2 class="mb-2 text-xl font-black text-ink">今日无待复习</h2>
           <p class="mb-6 text-sm text-slate-400">所有卡片已复习完毕，明天再来吧</p>
@@ -119,7 +119,7 @@ async function continueStudy() {
             返回首页
           </button>
         </div>
-        <div v-else class="soft-panel w-full rounded-2xl p-8">
+        <div v-else class="soft-panel w-full p-8">
           <BarChart3 class="mx-auto mb-4 h-16 w-16 text-blue-400" />
           <h2 class="mb-1 text-xl font-black text-ink">今日学习完成</h2>
           <p class="mb-6 text-sm text-slate-400">共复习 {{ cards.length }} 张卡片</p>
