@@ -1,8 +1,16 @@
 #!/bin/bash
 # 单词卡片 - Android 开发调试脚本
 
-export ANDROID_HOME=/usr/local/share/android-commandlinetools
+export ANDROID_HOME=${ANDROID_HOME:-/usr/local/share/android-commandlinetools}
 export PATH="$PATH:$ANDROID_HOME/platform-tools"
+
+if [ -z "$ANDROID_NDK_HOME" ]; then
+  LATEST_NDK=$(ls -d "$ANDROID_HOME/ndk/"*/ 2>/dev/null | sort -V | tail -1)
+  if [ -n "$LATEST_NDK" ]; then
+    export ANDROID_NDK_HOME="${LATEST_NDK%/}"
+    export NDK_HOME="$ANDROID_NDK_HOME"
+  fi
+fi
 
 case "${1:-help}" in
   emulator)
@@ -13,7 +21,8 @@ case "${1:-help}" in
     ;;
   run)
     echo "🚀 编译并安装开发版 APK（带热重载）..."
-    npm run tauri android dev
+    export TAURI_DEV_HOST=10.0.2.2
+    npx tauri android dev
     ;;
   logcat)
     echo "📋 查看应用日志（Ctrl+C 退出）..."
@@ -27,7 +36,7 @@ case "${1:-help}" in
     ;;
   build)
     echo "🔨 构建正式 APK..."
-    npm run tauri android build
+    npx tauri android build
     echo "   APK: src-tauri/gen/android/app/build/outputs/apk/universal/release/"
     ;;
   apk)

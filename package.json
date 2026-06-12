@@ -7,7 +7,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "tauri": "RUSTC=$HOME/.cargo/bin/rustc PATH=\"/usr/local/bin:$PATH\" tauri"
+    "tauri": "tauri",
+    "dev:desktop": "tauri dev",
+    "dev:android": "pwsh scripts/android/dev.ps1 run",
+    "dev:android:mac": "bash scripts/android/dev.sh run",
+    "dev:android:logcat": "pwsh scripts/android/dev.ps1 logcat",
+    "dev:android:logcat:mac": "bash scripts/android/dev.sh logcat",
+    "build:android": "pwsh scripts/android/dev.ps1 build",
+    "build:android:mac": "bash scripts/android/dev.sh build",
+    "build:desktop": "tauri build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
