@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
-import { BarChart3, CheckCircle, Settings } from 'lucide-vue-next'
+import { BarChart3, CheckCircle } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
 import FlashCard from '../components/FlashCard.vue'
 import BottomNav from '../components/BottomNav.vue'
@@ -97,11 +97,6 @@ async function continueStudy() {
           <h1 class="text-sm font-black text-ink">闪卡学习</h1>
           <p class="mt-1 text-xs text-slate-400">{{ progress.current }} / {{ progress.total }}</p>
         </div>
-      </template>
-      <template #right>
-        <button v-if="!sessionDone" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm" title="设置">
-          <Settings class="h-5 w-5" />
-        </button>
       </template>
     </NavBar>
 

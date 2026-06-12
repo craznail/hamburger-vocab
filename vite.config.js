@@ -8,7 +8,7 @@ export default defineConfig({
   clearScreen: false,
   server: {
     host: '0.0.0.0',
-    port: 5173,
+    port: Number(process.env.HAMBURGER_DEV_PORT || 5173),
     strictPort: true,
     watch: {
       ignored: ['**/src-tauri/**']

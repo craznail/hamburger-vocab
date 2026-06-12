@@ -4,11 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/vite-dev.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "dev:desktop": "tauri dev",
+    "dev:desktop": "node scripts/tauri-dev.mjs desktop",
     "dev:android": "pwsh scripts/android/dev.ps1 run",
     "dev:android:mac": "bash scripts/android/dev.sh run",
     "dev:android:logcat": "pwsh scripts/android/dev.ps1 logcat",

@@ -91,7 +91,7 @@ function Start-EmulatorList {
 function Start-Run {
     Write-Host "编译并安装开发版 APK（带热重载）..."
     $env:TAURI_DEV_HOST = "10.0.2.2"
-    npx tauri android dev
+    node scripts/tauri-dev.mjs android
 }
 
 function Start-Logcat {

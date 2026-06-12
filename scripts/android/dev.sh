@@ -2,7 +2,14 @@
 # 单词卡片 - Android 开发调试脚本
 
 export ANDROID_HOME=${ANDROID_HOME:-/usr/local/share/android-commandlinetools}
-export PATH="$PATH:$ANDROID_HOME/platform-tools"
+export PATH="$HOME/.cargo/bin:$ANDROID_HOME/platform-tools:$PATH"
+
+# Android Rust targets are managed by rustup. Keep cargo and rustc on the
+# same toolchain instead of accidentally mixing in a Homebrew installation.
+if ! rustup which cargo >/dev/null 2>&1; then
+  echo "❌ rustup toolchain 中缺少 Cargo，请执行: rustup component add cargo"
+  exit 1
+fi
 
 if [ -z "$ANDROID_NDK_HOME" ]; then
   LATEST_NDK=$(ls -d "$ANDROID_HOME/ndk/"*/ 2>/dev/null | sort -V | tail -1)
@@ -22,7 +29,7 @@ case "${1:-help}" in
   run)
     echo "🚀 编译并安装开发版 APK（带热重载）..."
     export TAURI_DEV_HOST=10.0.2.2
-    npx tauri android dev
+    node scripts/tauri-dev.mjs android
     ;;
   logcat)
     echo "📋 查看应用日志（Ctrl+C 退出）..."

@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, CheckCircle, Eye, Heart, Home, Loader, Pause, Play, RotateCcw, Settings, Star, Trees, Volume2, VolumeX } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
-import { speakWord } from '../platform/tts.js'
+import { prepareSpeech, speakWord } from '../platform/tts.js'
 import NavBar from '../components/NavBar.vue'
 import BottomNav from '../components/BottomNav.vue'
 
@@ -15,15 +15,16 @@ const cards = ref([])
 const currentIndex = ref(0)
 const loading = ref(true)
 const sessionDone = ref(false)
-const skipping = ref(false)
 const answerVisible = ref(false)
 const repeatCount = ref(2)
 const intervalSeconds = ref(3)
+const showPlaybackSettings = ref(false)
 const isPlaying = ref(false)
 const speechState = ref('idle')
 const ttsUnavailable = ref(false)
 const playToken = ref(0)
 let speechController = null
+let delayController = null
 
 const deckId = computed(() => route.query.deckId || null)
 const currentCard = computed(() => cards.value[currentIndex.value] || null)
@@ -46,8 +47,28 @@ function clampSettings() {
   intervalSeconds.value = Math.min(10, Math.max(1, Number(intervalSeconds.value) || 3))
 }
 
-function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+function wait(ms, signal) {
+  return new Promise(resolve => {
+    if (signal?.aborted) {
+      resolve(false)
+      return
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', abort)
+      resolve(true)
+    }, ms)
+    function abort() {
+      clearTimeout(timer)
+      resolve(false)
+    }
+    signal?.addEventListener('abort', abort, { once: true })
+  })
+}
+
+function warmUpcoming(fromIndex, count = 3) {
+  cards.value
+    .slice(fromIndex, fromIndex + count)
+    .forEach(card => prepareSpeech(card.word).catch(() => {}))
 }
 
 onMounted(async () => {
@@ -55,6 +76,8 @@ onMounted(async () => {
     cards.value = shuffle(await store.getTodayLearningCards(deckId.value))
     if (cards.value.length === 0) {
       sessionDone.value = true
+    } else {
+      warmUpcoming(0)
     }
   } catch (e) {
     console.warn('加载听写卡片失败（预览模式时正常）:', e)
@@ -73,10 +96,20 @@ function goHome() {
   router.push({ name: 'Home' })
 }
 
+function togglePlaybackSettings() {
+  showPlaybackSettings.value = !showPlaybackSettings.value
+}
+
+function closePlaybackSettings() {
+  showPlaybackSettings.value = false
+}
+
 function stopPlayback() {
   playToken.value++
   speechController?.abort()
   speechController = null
+  delayController?.abort()
+  delayController = null
   isPlaying.value = false
   speechState.value = 'idle'
   if ('speechSynthesis' in window) {
@@ -88,22 +121,24 @@ async function startPlayback() {
   if (!currentCard.value || isPlaying.value) return
   clampSettings()
   ttsUnavailable.value = false
-  skipping.value = false
   isPlaying.value = true
   const token = ++playToken.value
 
   // 遍历所有剩余单词，自动连续播报
   while (token === playToken.value && currentIndex.value < cards.value.length) {
     const card = cards.value[currentIndex.value]
+    const nextCard = cards.value[currentIndex.value + 1]
+    if (nextCard) prepareSpeech(nextCard.word).catch(() => {})
     answerVisible.value = false
     ttsUnavailable.value = false
 
     for (let i = 0; i < repeatCount.value; i++) {
       if (token !== playToken.value) break
-      speechController = new AbortController()
+      const controller = new AbortController()
+      speechController = controller
       try {
         await speakWord(card.word, {
-          signal: speechController.signal,
+          signal: controller.signal,
           timeoutMs: 30000,
           onStateChange: state => {
             if (token === playToken.value) speechState.value = state
@@ -111,29 +146,33 @@ async function startPlayback() {
         })
       } catch {
         if (token === playToken.value) {
-          if (skipping.value) {
-            // 用户主动跳过当前词，重置标记继续下一个词
-            skipping.value = false
-          } else {
-            ttsUnavailable.value = true
-            speechState.value = 'unavailable'
-          }
+          ttsUnavailable.value = true
+          speechState.value = 'unavailable'
         }
         break
       } finally {
-        speechController = null
+        if (speechController === controller) speechController = null
       }
 
       if (i < repeatCount.value - 1 && token === playToken.value) {
-        await wait(intervalSeconds.value * 1000)
+        const controller = new AbortController()
+        delayController = controller
+        const completed = await wait(intervalSeconds.value * 1000, controller.signal)
+        if (delayController === controller) delayController = null
+        if (!completed) break
       }
     }
 
     // 当前词播完：如果不是最后一个词且未被中止，前进到下一个词
     if (token === playToken.value && currentIndex.value < cards.value.length - 1) {
       currentIndex.value++
+      warmUpcoming(currentIndex.value + 1, 2)
       // 词间停顿
-      await wait(intervalSeconds.value * 1000)
+      const controller = new AbortController()
+      delayController = controller
+      const completed = await wait(intervalSeconds.value * 1000, controller.signal)
+      if (delayController === controller) delayController = null
+      if (!completed) break
     } else {
       break
     }
@@ -157,10 +196,12 @@ function togglePlayback() {
 }
 
 function revealAnswer() {
+  closePlaybackSettings()
   answerVisible.value = true
 }
 
 function goPrevious() {
+  closePlaybackSettings()
   if (currentIndex.value === 0) return
   stopPlayback()
   currentIndex.value--
@@ -169,14 +210,14 @@ function goPrevious() {
 }
 
 function goNext() {
+  closePlaybackSettings()
   if (isPlaying.value && currentIndex.value < cards.value.length - 1) {
-    // 播放中切下一词：跳过当前词继续播
-    skipping.value = true
-    speechController?.abort()
-    speechController = null
+    // Stop the old loop before changing the index so it cannot advance twice.
+    stopPlayback()
     currentIndex.value++
     answerVisible.value = false
     ttsUnavailable.value = false
+    startPlayback()
   } else {
     // 不在播放中：原行为
     stopPlayback()
@@ -192,11 +233,11 @@ function goNext() {
 
 function restartSession() {
   stopPlayback()
+  closePlaybackSettings()
   currentIndex.value = 0
   answerVisible.value = false
   sessionDone.value = false
   ttsUnavailable.value = false
-  skipping.value = false
 }
 
 </script>
@@ -211,7 +252,12 @@ function restartSession() {
         </div>
       </template>
       <template #right>
-        <button v-if="!loading && !sessionDone" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm" title="播报设置">
+        <button
+          v-if="!loading && !sessionDone"
+          class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm"
+          title="播报设置"
+          @click="togglePlaybackSettings"
+        >
           <Settings class="h-5 w-5" />
         </button>
       </template>
@@ -258,6 +304,54 @@ function restartSession() {
 
     <div v-else-if="currentCard" class="flex flex-1 flex-col px-5 py-5">
       <div class="flex flex-1 flex-col gap-5">
+        <div v-if="showPlaybackSettings" class="soft-panel rounded-2xl p-4">
+          <div class="mb-3 flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-black text-ink">播报设置</h2>
+              <p class="mt-1 text-xs text-slate-400">调整重复次数和每次播报之间的停顿</p>
+            </div>
+            <button
+              class="rounded-lg px-2 py-1 text-xs font-bold text-slate-400"
+              @click="closePlaybackSettings"
+            >
+              关闭
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block">
+              <span class="mb-1.5 block text-xs font-bold text-slate-500">重复次数</span>
+              <select
+                v-model="repeatCount"
+                class="h-11 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm text-ink outline-none focus:border-blue-300"
+              >
+                <option :value="1">1 次</option>
+                <option :value="2">2 次</option>
+                <option :value="3">3 次</option>
+                <option :value="4">4 次</option>
+                <option :value="5">5 次</option>
+              </select>
+            </label>
+
+            <label class="block">
+              <span class="mb-1.5 block text-xs font-bold text-slate-500">播报间隔</span>
+              <select
+                v-model="intervalSeconds"
+                class="h-11 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm text-ink outline-none focus:border-blue-300"
+              >
+                <option :value="1">1 秒</option>
+                <option :value="2">2 秒</option>
+                <option :value="3">3 秒</option>
+                <option :value="4">4 秒</option>
+                <option :value="5">5 秒</option>
+                <option :value="6">6 秒</option>
+                <option :value="8">8 秒</option>
+                <option :value="10">10 秒</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
         <div class="soft-panel flex-1 rounded-[24px] px-5 py-8 text-center">
             <div
               class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full"
