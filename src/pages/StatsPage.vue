@@ -1,10 +1,13 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { BookMarked, Clock3, Flame, TrendingUp } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
 import BottomNav from '../components/BottomNav.vue'
 import NavBar from '../components/NavBar.vue'
+import statTime from '../assets/ui-icons/stat-time.svg'
+import statCards from '../assets/ui-icons/stat-cards.svg'
+import statTotal from '../assets/ui-icons/stat-total.svg'
+import statRate from '../assets/ui-icons/stat-rate.svg'
 
 const router = useRouter()
 const store = useAppStore()
@@ -32,25 +35,25 @@ const labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周
     <main class="flex-1 px-4 pb-8 pt-4">
       <section class="grid grid-cols-2 gap-3">
         <div class="stat-grid-card p-4">
-          <Clock3 class="mb-2 h-4 w-4 text-blue-500" />
+          <img :src="statTime" alt="学习时长" class="mb-2 h-6 w-6" />
           <div class="text-2xl font-black text-ink">6.8 h</div>
           <p class="mt-1 text-xs text-slate-400">学习时长</p>
           <p class="mt-2 text-xs font-bold text-emerald-500">较上周 ↑ 23%</p>
         </div>
         <div class="stat-grid-card p-4">
-          <BookMarked class="mb-2 h-4 w-4 text-emerald-500" />
+          <img :src="statCards" alt="复习卡片" class="mb-2 h-6 w-6" />
           <div class="text-2xl font-black text-ink">{{ dueCards || store.todayCount }}</div>
           <p class="mt-1 text-xs text-slate-400">复习卡片</p>
           <p class="mt-2 text-xs font-bold text-emerald-500">较上周 ↑ 18%</p>
         </div>
         <div class="stat-grid-card p-4">
-          <Flame class="mb-2 h-4 w-4 text-amber-500" />
+          <img :src="statTotal" alt="总卡片" class="mb-2 h-6 w-6" />
           <div class="text-2xl font-black text-ink">{{ totalCards }}</div>
           <p class="mt-1 text-xs text-slate-400">总卡片</p>
           <p class="mt-2 text-xs font-bold text-emerald-500">持续积累中</p>
         </div>
         <div class="stat-grid-card p-4">
-          <TrendingUp class="mb-2 h-4 w-4 text-red-500" />
+          <img :src="statRate" alt="记忆准确率" class="mb-2 h-6 w-6" />
           <div class="text-2xl font-black text-ink">{{ masteryRate }}%</div>
           <p class="mt-1 text-xs text-slate-400">记忆准确率</p>
           <p class="mt-2 text-xs font-bold text-emerald-500">较上周 ↑ 6%</p>

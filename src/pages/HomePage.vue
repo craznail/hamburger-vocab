@@ -2,10 +2,17 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
-import { ArrowRight, BookOpen, Brain, CheckSquare, Flame, GraduationCap, Loader, Play, Plus, Search, Sparkles, Volume2 } from 'lucide-vue-next'
+import { ArrowRight, Brain, CheckSquare, Flame, GraduationCap, Loader, Play, Plus, Search, Sparkles, Volume2 } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
 import { speakWord } from '../platform/tts.js'
 import BottomNav from '../components/BottomNav.vue'
+import deckRedis from '../assets/ui-icons/deck-redis.svg'
+import deckEnglish from '../assets/ui-icons/deck-english.svg'
+import deckSystem from '../assets/ui-icons/deck-system.svg'
+import heroBuddyCard from '../assets/ui-icons/hero-buddy-card.svg'
+import heroTodayCard from '../assets/ui-icons/hero-today-card.svg'
+import modeDictation from '../assets/ui-icons/mode-dictation.svg'
+import modeFlashcard from '../assets/ui-icons/mode-flashcard.svg'
 
 const router = useRouter()
 const store = useAppStore()
@@ -14,6 +21,7 @@ const ttsWord = ref('')
 const ttsState = ref('idle')
 
 const ttsError = ref('')
+const homeDeckIcons = [deckRedis, deckEnglish, deckSystem]
 
 function testTTS() {
   const word = ttsWord.value.trim()
@@ -111,13 +119,8 @@ function getDeckDue(deck) {
                 <p class="mt-2 text-xs leading-5 text-slate-400">再接再厉，冲击更高纪录</p>
               </div>
             </div>
-            <div class="study-buddy min-h-[152px]">
-              <div class="buddy-head">
-                <span />
-              </div>
-              <div class="buddy-book" />
-              <div class="absolute right-2 top-2 rounded-full bg-[#ff7e47] px-3 py-1 text-[10px] font-black text-white shadow-lg shadow-orange-300/40">加油呀</div>
-              <Sparkles class="absolute bottom-5 right-4 h-5 w-5 text-amber-300" />
+            <div class="relative flex items-center justify-center">
+              <img :src="heroBuddyCard" alt="学习伙伴" class="h-[138px] w-[138px] object-contain" />
             </div>
           </div>
 
@@ -138,13 +141,7 @@ function getDeckDue(deck) {
               <p class="mt-2 text-sm text-blue-100/90">预计耗时 {{ Math.max(1, Math.ceil(store.todayCount / 6)) }} 分钟</p>
             </div>
             <div class="flex items-center justify-center">
-              <div class="relative h-[120px] w-[100px] rounded-[26px] bg-white/18 shadow-[inset_0_1px_0_rgba(255,255,255,0.24)]">
-                <div class="absolute left-1/2 top-5 h-[82px] w-[62px] -translate-x-1/2 rounded-[18px] bg-white/95 shadow-[0_16px_32px_rgba(20,54,170,0.16)]" />
-                <div class="absolute left-1/2 top-10 h-1 w-9 -translate-x-1/2 rounded-full bg-blue-300/70" />
-                <div class="absolute left-1/2 top-[3.4rem] h-1 w-10 -translate-x-1/2 rounded-full bg-blue-200/75" />
-                <div class="absolute left-1/2 top-[4.25rem] h-1 w-8 -translate-x-1/2 rounded-full bg-blue-200/65" />
-                <div class="absolute bottom-5 right-4 h-10 w-10 rounded-2xl bg-white/28" />
-              </div>
+              <img :src="heroTodayCard" alt="今日任务" class="h-[136px] w-[136px] object-contain" />
             </div>
           </div>
           <button
@@ -174,13 +171,13 @@ function getDeckDue(deck) {
 
         <div v-if="store.decks.length > 0" class="soft-panel overflow-hidden px-4 py-3">
           <button
-            v-for="deck in store.sortedDecks.slice(0, 3)"
+            v-for="(deck, index) in store.sortedDecks.slice(0, 3)"
             :key="deck.id"
             class="flex w-full items-center gap-3 border-b border-[#edf2ff] py-3 text-left last:border-b-0"
             @click="goDeckDetail(deck.id)"
           >
-            <div class="deck-gem grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white">
-              <BookOpen class="h-5 w-5" />
+            <div class="deck-gem grid h-11 w-11 shrink-0 place-items-center rounded-2xl">
+              <img :src="homeDeckIcons[index] || homeDeckIcons[0]" :alt="deck.name" class="h-11 w-11 rounded-2xl object-cover" />
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex items-center justify-between gap-3">
@@ -199,7 +196,7 @@ function getDeckDue(deck) {
         </div>
 
         <div v-else class="soft-panel p-7 text-center">
-          <BookOpen class="mx-auto mb-3 h-12 w-12 text-blue-200" />
+          <img :src="deckRedis" alt="知识库" class="mx-auto mb-3 h-12 w-12 rounded-2xl" />
           <p class="mb-1 text-sm font-semibold text-slate-500">还没有知识库</p>
           <p class="text-xs muted">导入文本文件后就能开始学习</p>
         </div>
@@ -217,9 +214,7 @@ function getDeckDue(deck) {
             class="soft-panel action-tile flex items-center gap-3 p-4 text-left"
             @click="goDictation"
           >
-            <span class="icon-well bg-blue-50 text-blue-600">
-              <Volume2 class="h-5 w-5" />
-            </span>
+            <img :src="modeDictation" alt="听写模式" class="h-12 w-12 rounded-[18px]" />
             <span class="min-w-0">
               <span class="block text-sm font-black text-ink">听写模式</span>
               <span class="mt-1 block text-xs muted">边听边写</span>
@@ -229,9 +224,7 @@ function getDeckDue(deck) {
             class="soft-panel action-tile flex items-center gap-3 p-4 text-left"
             @click="goStudy()"
           >
-            <span class="icon-well bg-emerald-50 text-emerald-600">
-              <GraduationCap class="h-5 w-5" />
-            </span>
+            <img :src="modeFlashcard" alt="闪卡学习" class="h-12 w-12 rounded-[18px]" />
             <span class="min-w-0">
               <span class="block text-sm font-black text-ink">闪卡学习</span>
               <span class="mt-1 block text-xs muted">智能复习</span>

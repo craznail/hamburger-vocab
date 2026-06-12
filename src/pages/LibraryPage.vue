@@ -1,22 +1,20 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, BookOpen, Box, Code2, Globe2, Languages, Plus, Search } from 'lucide-vue-next'
+import { ArrowRight, BookOpen, Plus, Search } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
 import BottomNav from '../components/BottomNav.vue'
 import NavBar from '../components/NavBar.vue'
+import deckRedis from '../assets/ui-icons/deck-redis.svg'
+import deckEnglish from '../assets/ui-icons/deck-english.svg'
+import deckSystem from '../assets/ui-icons/deck-system.svg'
+import deckNetwork from '../assets/ui-icons/deck-network.svg'
+import deckProduct from '../assets/ui-icons/deck-product.svg'
 
 const router = useRouter()
 const store = useAppStore()
 
-const deckIcons = [Box, Languages, Code2, Globe2, BookOpen]
-const deckColors = [
-  'from-red-500 to-orange-400',
-  'from-emerald-500 to-green-400',
-  'from-blue-500 to-cyan-400',
-  'from-purple-500 to-fuchsia-400',
-  'from-amber-500 to-yellow-400'
-]
+const deckIcons = [deckRedis, deckEnglish, deckSystem, deckNetwork, deckProduct]
 
 const totals = computed(() => {
   const totalCards = store.decks.reduce((sum, deck) => sum + getDeckTotal(deck), 0)
@@ -91,8 +89,8 @@ function openDeck(deckId) {
           class="card-list-row flex w-full items-center gap-3 px-4 py-3 text-left active:scale-[0.99]"
           @click="openDeck(deck.id)"
         >
-          <span class="deck-gem flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg shadow-blue-100" :class="deckColors[index % deckColors.length]">
-            <component :is="deckIcons[index % deckIcons.length]" class="h-6 w-6" />
+          <span class="deck-gem flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-lg shadow-blue-100">
+            <img :src="deckIcons[index % deckIcons.length]" :alt="deck.name" class="h-12 w-12 rounded-2xl object-cover" />
           </span>
           <span class="min-w-0 flex-1">
             <span class="flex items-center justify-between gap-3">
@@ -113,7 +111,7 @@ function openDeck(deckId) {
         </button>
 
         <div v-if="store.decks.length === 0" class="soft-panel p-8 text-center">
-          <BookOpen class="mx-auto mb-3 h-12 w-12 text-blue-200" />
+          <img :src="deckRedis" alt="知识库" class="mx-auto mb-3 h-12 w-12 rounded-2xl" />
           <p class="text-sm font-bold text-slate-500">还没有知识库</p>
           <button class="blue-gradient mt-5 h-11 rounded-xl px-7 text-sm font-bold text-white" @click="router.push({ name: 'Import' })">
             导入文件

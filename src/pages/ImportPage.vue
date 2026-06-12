@@ -1,14 +1,19 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { FileCode2, FileText, Upload } from 'lucide-vue-next'
+import { Upload } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
 import FileUpload from '../components/FileUpload.vue'
 import NavBar from '../components/NavBar.vue'
+import fileTxt from '../assets/ui-icons/file-txt.svg'
+import filePdf from '../assets/ui-icons/file-pdf.svg'
+import fileMd from '../assets/ui-icons/file-md.svg'
+import fileDoc from '../assets/ui-icons/file-doc.svg'
 
 const router = useRouter()
 const store = useAppStore()
 const importResult = ref(null)
+const fileIcons = [fileTxt, filePdf, fileMd, fileDoc]
 
 async function onFileSelected(fileName, text) {
   const result = await store.importFile(fileName, text)
@@ -33,8 +38,7 @@ async function onFileSelected(fileName, text) {
       <section class="soft-panel p-4">
         <div class="rounded-[28px] border-2 border-dashed border-blue-200 bg-blue-50/40 px-4 py-8 text-center">
           <div class="mb-5 flex justify-center gap-4">
-            <span class="grid h-11 w-11 place-items-center rounded-xl bg-white text-blue-500 shadow-sm"><FileText class="h-5 w-5" /></span>
-            <span class="grid h-11 w-11 place-items-center rounded-xl bg-white text-emerald-500 shadow-sm"><FileCode2 class="h-5 w-5" /></span>
+            <img v-for="icon in fileIcons" :key="icon" :src="icon" alt="文件类型" class="h-11 w-11 rounded-xl bg-white shadow-sm" />
           </div>
           <FileUpload @file-selected="onFileSelected" />
         </div>

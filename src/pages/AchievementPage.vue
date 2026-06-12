@@ -1,25 +1,28 @@
 <script setup>
 import { useRouter } from 'vue-router'
-import { Award, Medal, ShieldCheck, Star, Trophy } from 'lucide-vue-next'
+import achievementGold from '../assets/ui-icons/achievement-gold.svg'
+import achievementSilver from '../assets/ui-icons/achievement-silver.svg'
+import achievementBlue from '../assets/ui-icons/achievement-blue.svg'
+import achievementPurple from '../assets/ui-icons/achievement-purple.svg'
 import BottomNav from '../components/BottomNav.vue'
 import NavBar from '../components/NavBar.vue'
 
 const router = useRouter()
 
 const learningAchievements = [
-  { label: '连续学习 7 天', done: true, progress: '已获得', icon: Trophy },
-  { label: '连续学习 30 天', done: false, progress: '12/30', icon: Medal },
-  { label: '掌握 500 卡片', done: false, progress: '235/500', icon: Award },
-  { label: '掌握 1000 卡片', done: false, progress: '235/1000', icon: ShieldCheck },
-  { label: '累计学习 10 小时', done: false, progress: '6.8/10', icon: Star },
-  { label: '累计学习 50 小时', done: false, progress: '6.8/50', icon: Trophy }
+  { label: '连续学习 7 天', done: true, progress: '已获得', icon: achievementGold },
+  { label: '连续学习 30 天', done: false, progress: '12/30', icon: achievementSilver },
+  { label: '掌握 500 卡片', done: false, progress: '235/500', icon: achievementBlue },
+  { label: '掌握 1000 卡片', done: false, progress: '235/1000', icon: achievementPurple },
+  { label: '累计学习 10 小时', done: false, progress: '6.8/10', icon: achievementSilver },
+  { label: '累计学习 50 小时', done: false, progress: '6.8/50', icon: achievementBlue }
 ]
 
 const collectionAchievements = [
-  { label: '导入达人', icon: Award },
-  { label: '复习明星', icon: Star },
-  { label: '知识收藏家', icon: ShieldCheck },
-  { label: '专注勋章', icon: Medal }
+  { label: '导入达人', icon: achievementGold },
+  { label: '复习明星', icon: achievementSilver },
+  { label: '知识收藏家', icon: achievementBlue },
+  { label: '专注勋章', icon: achievementPurple }
 ]
 </script>
 
@@ -35,7 +38,7 @@ const collectionAchievements = [
       <section class="blue-gradient overflow-hidden rounded-[28px] p-4 text-white shadow-[0_22px_40px_rgba(57,96,223,0.18)]">
         <div class="flex items-center gap-4">
           <div class="grid h-16 w-16 place-items-center rounded-full bg-white/20">
-            <Trophy class="h-9 w-9 text-yellow-200" />
+            <img :src="achievementGold" alt="等级徽章" class="h-12 w-12" />
           </div>
           <div class="min-w-0 flex-1">
             <div class="text-2xl font-black">Lv.8</div>
@@ -54,9 +57,7 @@ const collectionAchievements = [
         </div>
         <div class="grid grid-cols-3 gap-3">
           <div v-for="item in learningAchievements" :key="item.label" class="tiny-card p-3 text-center">
-            <div class="medal mx-auto grid h-11 w-11 place-items-center rounded-full" :class="item.done ? 'bg-gradient-to-br from-yellow-100 to-amber-300 text-amber-600' : 'bg-gradient-to-br from-slate-50 to-blue-100 text-slate-300'">
-              <component :is="item.icon" class="h-6 w-6" />
-            </div>
+            <img :src="item.icon" :alt="item.label" class="mx-auto h-11 w-11" />
             <p class="mt-2 min-h-8 text-[11px] font-bold leading-4 text-ink">{{ item.label }}</p>
             <p class="text-[10px]" :class="item.done ? 'text-amber-500' : 'text-slate-400'">{{ item.progress }}</p>
           </div>
@@ -70,9 +71,7 @@ const collectionAchievements = [
         </div>
         <div class="grid grid-cols-4 gap-3">
           <div v-for="(item, index) in collectionAchievements" :key="item.label" class="tiny-card p-3 text-center">
-            <div class="medal mx-auto grid h-12 w-12 place-items-center rounded-full" :class="index < 2 ? 'bg-gradient-to-br from-yellow-100 to-amber-300 text-amber-600' : 'bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-400'">
-              <component :is="item.icon" class="h-7 w-7" />
-            </div>
+            <img :src="item.icon" :alt="item.label" class="mx-auto h-12 w-12" />
             <p class="mt-2 truncate text-[10px] font-bold text-slate-500">{{ item.label }}</p>
           </div>
         </div>

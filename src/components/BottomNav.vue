@@ -1,16 +1,20 @@
 <script setup>
 import { useRoute, useRouter } from 'vue-router'
-import { BarChart3, BookOpen, GraduationCap, Home, UserRound } from 'lucide-vue-next'
+import navHome from '../assets/ui-icons/nav-home.svg'
+import navLibrary from '../assets/ui-icons/nav-library.svg'
+import navStudy from '../assets/ui-icons/nav-study.svg'
+import navStats from '../assets/ui-icons/nav-stats.svg'
+import navProfile from '../assets/ui-icons/nav-profile.svg'
 
 const route = useRoute()
 const router = useRouter()
 
 const items = [
-  { label: '首页', icon: Home, route: 'Home' },
-  { label: '知识库', icon: BookOpen, route: 'Library' },
-  { label: '学习', icon: GraduationCap, route: 'Study' },
-  { label: '统计', icon: BarChart3, route: 'Stats' },
-  { label: '我的', icon: UserRound, route: 'Profile' }
+  { label: '首页', icon: navHome, route: 'Home' },
+  { label: '知识库', icon: navLibrary, route: 'Library' },
+  { label: '学习', icon: navStudy, route: 'Study' },
+  { label: '统计', icon: navStats, route: 'Stats' },
+  { label: '我的', icon: navProfile, route: 'Profile' }
 ]
 
 const routeGroups = {
@@ -44,11 +48,7 @@ function isActive(item) {
           class="absolute top-1 h-1 w-6 rounded-full bg-blue-600 transition-opacity"
           :class="isActive(item) ? 'opacity-100' : 'opacity-0'"
         />
-        <component
-          :is="item.icon"
-          class="h-[21px] w-[21px]"
-          :stroke-width="isActive(item) ? 2.6 : 2"
-        />
+        <img :src="item.icon" :alt="item.label" class="h-[22px] w-[22px]" />
         <span class="truncate">{{ item.label }}</span>
       </button>
     </div>

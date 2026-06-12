@@ -1,7 +1,10 @@
 <script setup>
 import { ref } from 'vue'
-import { Heart, Loader, Star, Trees, Volume2, VolumeX } from 'lucide-vue-next'
+import { Loader, Volume2, VolumeX } from 'lucide-vue-next'
 import { speakWord } from '../platform/tts.js'
+import actionForgot from '../assets/ui-icons/action-forgot.svg'
+import actionHazy from '../assets/ui-icons/action-hazy.svg'
+import actionKnown from '../assets/ui-icons/action-known.svg'
 
 const props = defineProps({
   card: { type: Object, required: true },
@@ -79,7 +82,7 @@ function speak(event) {
           :disabled="!revealed"
           @click="emit('rate', 0)"
         >
-          <Heart class="h-6 w-6" />
+          <img :src="actionForgot" alt="忘记" class="h-8 w-8" />
           <span class="text-sm font-black">忘记</span>
           <span class="text-[10px] text-white/75">1 天后复习</span>
         </button>
@@ -88,7 +91,7 @@ function speak(event) {
           :disabled="!revealed"
           @click="emit('rate', 3)"
         >
-          <Star class="h-6 w-6" />
+          <img :src="actionHazy" alt="模糊" class="h-8 w-8" />
           <span class="text-sm font-black">模糊</span>
           <span class="text-[10px] text-white/75">3 天后复习</span>
         </button>
@@ -97,7 +100,7 @@ function speak(event) {
           :disabled="!revealed"
           @click="emit('rate', 5)"
         >
-          <Trees class="h-6 w-6" />
+          <img :src="actionKnown" alt="认识" class="h-8 w-8" />
           <span class="text-sm font-black">认识</span>
           <span class="text-[10px] text-white/75">7 天后复习</span>
         </button>

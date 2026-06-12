@@ -1,11 +1,15 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, CheckCircle, Eye, Heart, Home, Loader, Pause, Play, RotateCcw, Settings, Star, Trees, Volume2, VolumeX } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, CheckCircle, Eye, Home, Loader, Pause, Play, RotateCcw, Settings, Volume2, VolumeX } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
 import { prepareSpeech, speakWord } from '../platform/tts.js'
 import NavBar from '../components/NavBar.vue'
 import BottomNav from '../components/BottomNav.vue'
+import dictationWaveCard from '../assets/ui-icons/dictation-wave-card.svg'
+import actionForgot from '../assets/ui-icons/action-forgot.svg'
+import actionHazy from '../assets/ui-icons/action-hazy.svg'
+import actionKnown from '../assets/ui-icons/action-known.svg'
 
 const route = useRoute()
 const router = useRouter()
@@ -353,13 +357,18 @@ function restartSession() {
         </div>
 
         <div class="soft-panel flex-1 rounded-[32px] px-6 py-8 text-center">
-            <div
-              class="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full"
-              :class="isPlaying ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'"
-            >
-              <Loader v-if="speechState === 'loading'" class="h-8 w-8 animate-spin" />
-              <VolumeX v-else-if="speechState === 'unavailable'" class="h-8 w-8" />
-              <Volume2 v-else class="h-8 w-8" />
+            <div class="mx-auto mb-6 flex justify-center">
+              <div class="relative h-32 w-full max-w-[220px]">
+                <img :src="dictationWaveCard" alt="听写播报" class="h-32 w-full object-contain" />
+                <div
+                  class="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/18"
+                  :class="isPlaying ? 'text-white' : 'text-blue-50'"
+                >
+                  <Loader v-if="speechState === 'loading'" class="h-6 w-6 animate-spin" />
+                  <VolumeX v-else-if="speechState === 'unavailable'" class="h-6 w-6" />
+                  <Volume2 v-else class="h-6 w-6" />
+                </div>
+              </div>
             </div>
 
             <h1 class="mb-1 text-[2rem] font-black tracking-[-0.03em] text-ink">{{ answerVisible ? currentCard.word : '听发音，写下单词' }}</h1>
@@ -401,17 +410,17 @@ function restartSession() {
 
         <div class="grid grid-cols-3 gap-4">
           <button class="red-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-red-200/60" @click="goNext">
-            <Heart class="h-6 w-6" />
+            <img :src="actionForgot" alt="忘记" class="h-7 w-7" />
             <span class="text-sm font-black">忘记</span>
             <span class="text-[10px] text-white/75">1 天后复习</span>
           </button>
           <button class="warm-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-amber-200/60" @click="goNext">
-            <Star class="h-6 w-6" />
+            <img :src="actionHazy" alt="模糊" class="h-7 w-7" />
             <span class="text-sm font-black">模糊</span>
             <span class="text-[10px] text-white/75">3 天后复习</span>
           </button>
           <button class="green-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-green-200/60" @click="goNext">
-            <Trees class="h-6 w-6" />
+            <img :src="actionKnown" alt="认识" class="h-7 w-7" />
             <span class="text-sm font-black">认识</span>
             <span class="text-[10px] text-white/75">7 天后复习</span>
           </button>
