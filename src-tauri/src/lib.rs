@@ -58,6 +58,8 @@ pub fn run() {
             commands::import::rate_card,
             commands::import::parse_txt_content,
             commands::import::import_from_text,
+            // TTS commands
+            commands::tts::synthesize_speech,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
