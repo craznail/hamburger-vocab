@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { FileCode2, FileText, Upload } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
@@ -9,6 +9,23 @@ import NavBar from '../components/NavBar.vue'
 const router = useRouter()
 const store = useAppStore()
 const importResult = ref(null)
+const importHistory = computed(() => [...store.decks]
+  .sort((a, b) => new Date(b.createdAt || b.created_at) - new Date(a.createdAt || a.created_at)))
+
+function deckCount(deck) {
+  return deck.wordCount || deck.word_count || 0
+}
+
+function formatImportedAt(value) {
+  if (!value) return ''
+  const date = new Date(value.replace(' ', 'T'))
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date)
+}
 
 async function onFileSelected(fileName, text) {
   const result = await store.importFile(fileName, text)
@@ -45,13 +62,21 @@ async function onFileSelected(fileName, text) {
           <h2 class="text-sm font-black text-ink">导入历史</h2>
           <button class="text-xs font-bold text-slate-400">查看全部</button>
         </div>
-        <div class="card-list-row flex items-center gap-3 p-4">
+        <button
+          v-for="deck in importHistory"
+          :key="deck.id"
+          class="card-list-row mb-3 flex w-full items-center gap-3 p-4 text-left"
+          @click="router.push({ name: 'DeckDetail', params: { id: deck.id } })"
+        >
           <span class="grid h-11 w-11 place-items-center rounded-xl bg-blue-50 text-blue-500"><Upload class="h-5 w-5" /></span>
           <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-black text-ink">{{ importResult?.deckName || 'Redis 笔记.txt' }}</p>
-            <p class="mt-1 text-xs text-slate-400">{{ importResult?.success ? `成功导入 ${importResult.count} 张卡片` : '成功导入 382 张卡片' }}</p>
+            <p class="truncate text-sm font-black text-ink">{{ deck.name }}</p>
+            <p class="mt-1 text-xs text-slate-400">已导入 {{ deckCount(deck) }} 张卡片</p>
           </div>
-          <span class="text-xs text-slate-400">今天 14:30</span>
+          <span class="text-xs text-slate-400">{{ formatImportedAt(deck.createdAt || deck.created_at) }}</span>
+        </button>
+        <div v-if="importHistory.length === 0" class="soft-panel p-6 text-center text-sm text-slate-400">
+          暂无导入记录
         </div>
       </section>
     </main>

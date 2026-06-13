@@ -153,10 +153,21 @@ pub fn add_review_log(
     quality: i64,
     ef_before: f64,
     ef_after: f64,
+    duration_seconds: i64,
 ) -> Result<(), rusqlite::Error> {
     conn.execute(
-        "INSERT INTO review_logs (id, card_id, quality, ef_before, ef_after) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![generate_id(), card_id, quality, ef_before, ef_after],
+        "INSERT INTO review_logs
+            (id, card_id, reviewed_at, quality, ef_before, ef_after, duration_seconds)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            generate_id(),
+            card_id,
+            now_str(),
+            quality,
+            ef_before,
+            ef_after,
+            duration_seconds.clamp(0, 300),
+        ],
     )?;
     Ok(())
 }

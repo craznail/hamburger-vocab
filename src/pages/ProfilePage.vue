@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Crown, Download, Edit3, FileClock, Heart, Recycle, Settings, Star, UserRound } from 'lucide-vue-next'
+import { ArrowRight, Download, FileClock, Heart, Settings, Star, UserRound } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
 import BottomNav from '../components/BottomNav.vue'
 import NavBar from '../components/NavBar.vue'
@@ -10,10 +10,10 @@ const router = useRouter()
 const store = useAppStore()
 
 const totalCards = computed(() => store.decks.reduce((sum, deck) => sum + (deck.wordCount || deck.word_count || deck.total || 0), 0))
+const streakDays = computed(() => store.learningStats?.streakDays || 0)
 const rows = [
   { label: '学习记录', icon: FileClock, route: 'Stats' },
-  { label: '我的收藏', icon: Star, route: 'Achievements' },
-  { label: '回收站', icon: Recycle },
+  { label: '学习成就', icon: Star, route: 'Achievements' },
   { label: '导入记录', icon: Download, route: 'Import' },
   { label: '设置', icon: Settings, route: 'Settings' }
 ]
@@ -33,25 +33,9 @@ const rows = [
           <UserRound class="h-9 w-9" />
         </div>
         <div class="min-w-0 flex-1">
-          <h2 class="text-lg font-black text-ink">记得住</h2>
-          <p class="mt-1 text-xs text-slate-400">hello@recall.com</p>
+          <h2 class="text-lg font-black text-ink">本地学习档案</h2>
+          <p class="mt-1 text-xs text-slate-400">学习数据保存在当前设备</p>
         </div>
-        <button class="ghost-button px-3 py-2 text-xs font-bold text-blue-600">
-          <Edit3 class="h-3.5 w-3.5" />
-          编辑资料
-        </button>
-      </section>
-
-      <section class="mt-5 flex items-center gap-3 rounded-[26px] border border-[#ffe2a8] bg-[linear-gradient(135deg,#fff7df_0%,#fff0bf_100%)] p-4 text-amber-700 shadow-[0_16px_30px_rgba(255,190,68,0.12)]">
-        <Crown class="h-7 w-7 shrink-0 text-amber-500" />
-        <div class="min-w-0 flex-1">
-          <p class="text-sm font-black">Pro 会员</p>
-          <p class="mt-1 text-xs text-amber-600/75">2025-06-18 到期</p>
-        </div>
-        <button class="flex items-center gap-1 text-xs font-bold">
-          去续费
-          <ArrowRight class="h-3.5 w-3.5" />
-        </button>
       </section>
 
       <section class="mt-5 grid grid-cols-3 gap-3">
@@ -64,7 +48,7 @@ const rows = [
           <p class="mt-1 text-[11px] text-slate-400">总卡片</p>
         </div>
         <div class="stat-grid-card p-3 text-center">
-          <div class="text-xl font-black text-ink">12</div>
+          <div class="text-xl font-black text-ink">{{ streakDays }}</div>
           <p class="mt-1 text-[11px] text-slate-400">连续天数</p>
         </div>
       </section>

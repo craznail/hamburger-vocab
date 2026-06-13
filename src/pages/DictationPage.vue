@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, CheckCircle, Eye, Heart, Home, Loader, Pause, Play, RotateCcw, Settings, Star, Trees, Volume2, VolumeX } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, CheckCircle, Eye, Home, Loader, Pause, Play, RotateCcw, Settings, Volume2, VolumeX } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
 import { prepareSpeech, speakWord } from '../platform/tts.js'
 import NavBar from '../components/NavBar.vue'
@@ -80,7 +80,7 @@ onMounted(async () => {
       warmUpcoming(0)
     }
   } catch (e) {
-    console.warn('加载听写卡片失败（预览模式时正常）:', e)
+    console.warn('加载听写卡片失败:', e)
     cards.value = []
     sessionDone.value = true
   } finally {
@@ -391,30 +391,11 @@ function restartSession() {
               </button>
             </div>
 
-            <input class="input-soft h-14 w-full px-4 text-center text-sm text-ink outline-none focus:border-blue-300" placeholder="请输入你听到的单词" />
-            <p class="mt-4 text-xs font-medium text-slate-400">不知道？点击查看答案</p>
+            <p class="mt-4 text-xs font-medium text-slate-400">请在纸上完成听写，需要时再查看答案</p>
 
             <p v-if="answerVisible && currentCard.definition" class="mt-4 text-sm leading-relaxed text-slate-600">
               {{ currentCard.definition }}
             </p>
-        </div>
-
-        <div class="grid grid-cols-3 gap-4">
-          <button class="red-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-red-200/60" @click="goNext">
-            <Heart class="h-6 w-6" />
-            <span class="text-sm font-black">忘记</span>
-            <span class="text-[10px] text-white/75">1 天后复习</span>
-          </button>
-          <button class="warm-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-amber-200/60" @click="goNext">
-            <Star class="h-6 w-6" />
-            <span class="text-sm font-black">模糊</span>
-            <span class="text-[10px] text-white/75">3 天后复习</span>
-          </button>
-          <button class="green-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-green-200/60" @click="goNext">
-            <Trees class="h-6 w-6" />
-            <span class="text-sm font-black">认识</span>
-            <span class="text-[10px] text-white/75">7 天后复习</span>
-          </button>
         </div>
 
         <div class="flex justify-between gap-3">

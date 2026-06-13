@@ -46,6 +46,7 @@ pub fn run() {
             commands::deck::get_deck_by_id,
             commands::deck::get_deck_stats,
             commands::deck::get_today_count,
+            commands::study::get_learning_stats,
             // Card commands
             commands::card::import_cards,
             commands::card::get_cards_by_deck_id,

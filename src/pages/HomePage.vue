@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
 import { ArrowRight, BookOpen, Brain, CheckSquare, Flame, GraduationCap, Loader, Play, Plus, Search, Sparkles, Volume2 } from 'lucide-vue-next'
@@ -14,6 +14,14 @@ const ttsWord = ref('')
 const ttsState = ref('idle')
 
 const ttsError = ref('')
+const streakDays = computed(() => store.learningStats?.streakDays || 0)
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 6) return '夜深了'
+  if (hour < 12) return '早上好'
+  if (hour < 18) return '下午好'
+  return '晚上好'
+})
 
 function testTTS() {
   const word = ttsWord.value.trim()
@@ -91,7 +99,7 @@ function getDeckDue(deck) {
 
     <div class="flex-1 px-4 pb-8 pt-4">
       <div class="mb-4 px-1">
-        <h2 class="text-[2rem] font-black tracking-[-0.03em] text-ink">晚上好！</h2>
+        <h2 class="text-[2rem] font-black tracking-[-0.03em] text-ink">{{ greeting }}！</h2>
         <p class="mt-1 text-sm font-medium text-slate-400">愿你今天也有所收获</p>
       </div>
 
@@ -105,10 +113,10 @@ function getDeckDue(deck) {
                   连续学习
                 </div>
                 <div class="flex items-end gap-2">
-                  <span class="text-5xl font-black leading-none text-ink">12</span>
+                  <span class="text-5xl font-black leading-none text-ink">{{ streakDays }}</span>
                   <span class="pb-1 text-base font-bold text-ink-soft">天</span>
                 </div>
-                <p class="mt-2 text-xs leading-5 text-slate-400">再接再厉，冲击更高纪录</p>
+                <p class="mt-2 text-xs leading-5 text-slate-400">{{ streakDays ? `最长连续 ${store.learningStats?.longestStreak || streakDays} 天` : '完成一次复习，开始记录连续学习' }}</p>
               </div>
             </div>
             <div class="study-buddy min-h-[152px]">

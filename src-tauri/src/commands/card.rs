@@ -55,9 +55,17 @@ pub fn add_review_log(
     quality: i64,
     ef_before: f64,
     ef_after: f64,
+    duration_seconds: Option<i64>,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    crate::db::card_repo::add_review_log(&conn, &card_id, quality, ef_before, ef_after)
+    crate::db::card_repo::add_review_log(
+        &conn,
+        &card_id,
+        quality,
+        ef_before,
+        ef_after,
+        duration_seconds.unwrap_or(0),
+    )
         .map_err(|e| e.to_string())
 }
 

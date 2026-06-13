@@ -31,8 +31,29 @@ CREATE TABLE IF NOT EXISTS review_logs (
     quality       INTEGER NOT NULL,
     ef_before     REAL NOT NULL,
     ef_after      REAL NOT NULL,
+    duration_seconds INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_review_logs_card_id ON review_logs(card_id);
+CREATE INDEX IF NOT EXISTS idx_review_logs_reviewed_at ON review_logs(reviewed_at);
 ";
+
+pub fn run(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(DDL)?;
+
+    let has_duration = conn
+        .prepare("PRAGMA table_info(review_logs)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(Result::ok)
+        .any(|name| name == "duration_seconds");
+
+    if !has_duration {
+        conn.execute(
+            "ALTER TABLE review_logs ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+
+    Ok(())
+}

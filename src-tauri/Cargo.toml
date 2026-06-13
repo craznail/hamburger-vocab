@@ -1,6 +1,6 @@
 [package]
 name = "hamburger-vocab"
-version = "0.2.0"
+version = "0.3.0"
 description = "单词卡片学习系统 - Tauri 桌面版"
 authors = ["you"]
 license = ""

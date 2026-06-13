@@ -48,7 +48,7 @@ case "${1:-help}" in
     ;;
   apk)
     echo "📦 APK 文件在:"
-    ls -lh /Users/caogenyan/Documents/hamburger/发布包/单词卡片-v0.2.0.apk
+    ls -lh src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
     ;;
   *)
     echo "用法: ./dev-android.sh <命令>"

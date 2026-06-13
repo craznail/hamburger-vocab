@@ -2,6 +2,14 @@
 
 :root {
   color-scheme: light;
+  --safe-area-top: constant(safe-area-inset-top);
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: constant(safe-area-inset-right);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: constant(safe-area-inset-bottom);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: constant(safe-area-inset-left);
+  --safe-area-left: env(safe-area-inset-left, 0px);
   --bg: #f6f9ff;
   --bg-deep: #eef3ff;
   --ink: #1c2b61;
@@ -18,6 +26,14 @@
   --danger: #ff615d;
 }
 
+/* Android Tauri applies real system-bar/cutout insets to the native WebView. */
+html.tauri-android {
+  --safe-area-top: 0px;
+  --safe-area-right: 0px;
+  --safe-area-bottom: 0px;
+  --safe-area-left: 0px;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -32,6 +48,7 @@ html {
 body {
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   overflow-x: hidden;
   background:
@@ -62,6 +79,7 @@ button:disabled {
 .app-shell {
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(circle at top center, rgba(143, 183, 255, 0.12), transparent 28%),
     linear-gradient(180deg, rgba(251, 253, 255, 0.96) 0%, rgba(244, 248, 255, 0.98) 22rem, #eef3ff 100%);
@@ -69,7 +87,20 @@ button:disabled {
 
 .app-page {
   min-height: 100vh;
-  padding-bottom: calc(env(safe-area-inset-bottom) + 5.5rem);
+  min-height: 100dvh;
+  padding-right: var(--safe-area-right);
+  padding-bottom: calc(var(--safe-area-bottom) + 5.5rem);
+  padding-left: var(--safe-area-left);
+}
+
+.app-navbar {
+  padding-top: calc(var(--safe-area-top) + 0.55rem);
+}
+
+.app-bottom-nav {
+  padding-right: calc(var(--safe-area-right) + 1rem);
+  padding-bottom: calc(var(--safe-area-bottom) + 0.55rem);
+  padding-left: calc(var(--safe-area-left) + 1rem);
 }
 
 .glass-card,
@@ -419,9 +450,9 @@ button.soft-panel:active,
 }
 
 .pt-safe {
-  padding-top: env(safe-area-inset-top);
+  padding-top: var(--safe-area-top);
 }
 
 .header-safe-top {
-  padding-top: calc(env(safe-area-inset-top) + 0.75rem);
+  padding-top: calc(var(--safe-area-top) + 0.75rem);
 }

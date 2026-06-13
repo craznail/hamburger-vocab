@@ -75,3 +75,31 @@ pub struct ReviewUpdate {
     pub repetitions: i64,
     pub next_review: String,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyActivity {
+    pub date: String,
+    pub review_count: i64,
+    pub study_seconds: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LearningStats {
+    pub total_cards: i64,
+    pub mastered_cards: i64,
+    pub learning_cards: i64,
+    pub new_cards: i64,
+    pub due_cards: i64,
+    pub total_reviews: i64,
+    pub total_study_seconds: i64,
+    pub accuracy_rate: i64,
+    pub streak_days: i64,
+    pub longest_streak: i64,
+    pub this_week_reviews: i64,
+    pub previous_week_reviews: i64,
+    pub this_week_seconds: i64,
+    pub previous_week_seconds: i64,
+    pub daily_activity: Vec<DailyActivity>,
+}

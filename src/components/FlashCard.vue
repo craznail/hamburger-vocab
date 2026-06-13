@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Heart, Loader, Star, Trees, Volume2, VolumeX } from 'lucide-vue-next'
 import { speakWord } from '../platform/tts.js'
+import { computeNextReview } from '../utils/sm2'
 
 const props = defineProps({
   card: { type: Object, required: true },
@@ -13,6 +14,11 @@ const emit = defineEmits(['rate'])
 
 const revealed = ref(false)
 const ttsState = ref('idle') // idle | loading | playing | unavailable
+const intervals = computed(() => ({
+  forgot: computeNextReview(0, props.card).interval,
+  hazy: computeNextReview(3, props.card).interval,
+  mastered: computeNextReview(5, props.card).interval
+}))
 
 function toggleReveal() {
   revealed.value = !revealed.value
@@ -81,7 +87,7 @@ function speak(event) {
         >
           <Heart class="h-6 w-6" />
           <span class="text-sm font-black">忘记</span>
-          <span class="text-[10px] text-white/75">1 天后复习</span>
+          <span class="text-[10px] text-white/75">{{ intervals.forgot }} 天后复习</span>
         </button>
         <button
           class="warm-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-amber-200/60 disabled:grayscale disabled:opacity-45"
@@ -90,7 +96,7 @@ function speak(event) {
         >
           <Star class="h-6 w-6" />
           <span class="text-sm font-black">模糊</span>
-          <span class="text-[10px] text-white/75">3 天后复习</span>
+          <span class="text-[10px] text-white/75">{{ intervals.hazy }} 天后复习</span>
         </button>
         <button
           class="green-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-green-200/60 disabled:grayscale disabled:opacity-45"
@@ -99,7 +105,7 @@ function speak(event) {
         >
           <Trees class="h-6 w-6" />
           <span class="text-sm font-black">认识</span>
-          <span class="text-[10px] text-white/75">7 天后复习</span>
+          <span class="text-[10px] text-white/75">{{ intervals.mastered }} 天后复习</span>
         </button>
       </div>
     </div>

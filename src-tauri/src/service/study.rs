@@ -18,6 +18,7 @@ pub fn rate_card(
     conn: &rusqlite::Connection,
     card_id: &str,
     quality: i64,
+    duration_seconds: i64,
 ) -> Result<RateResult, String> {
     // 1. Read current card state
     let card = card_repo::get_card_by_id(conn, card_id)
@@ -40,7 +41,14 @@ pub fn rate_card(
         .map_err(|e| e.to_string())?;
 
     // 4. Log the review
-    card_repo::add_review_log(conn, card_id, quality, ef_before, result.ef)
+    card_repo::add_review_log(
+        conn,
+        card_id,
+        quality,
+        ef_before,
+        result.ef,
+        duration_seconds,
+    )
         .map_err(|e| e.to_string())?;
 
     Ok(RateResult {

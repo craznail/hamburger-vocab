@@ -15,6 +15,7 @@ const cards = ref([])
 const currentIndex = ref(0)
 const sessionResults = ref([])
 const sessionDone = ref(false)
+const cardStartedAt = ref(Date.now())
 
 const deckId = computed(() => route.query.deckId || null)
 const currentCard = computed(() => cards.value[currentIndex.value] || null)
@@ -49,8 +50,9 @@ onMounted(async () => {
 async function loadCards() {
   try {
     cards.value = shuffle(await store.getTodayLearningCards(deckId.value))
+    cardStartedAt.value = Date.now()
   } catch (e) {
-    console.warn('加载学习卡片失败（预览模式时正常）:', e)
+    console.warn('加载学习卡片失败:', e)
     cards.value = []
   }
   if (cards.value.length === 0) {
@@ -62,7 +64,8 @@ async function handleRate(quality) {
   if (!currentCard.value) return
 
   const card = currentCard.value
-  await store.rateCard(card.id, quality)
+  const durationSeconds = Math.max(1, Math.round((Date.now() - cardStartedAt.value) / 1000))
+  await store.rateCard(card.id, quality, durationSeconds)
 
   sessionResults.value.push({
     word: card.word,
@@ -72,6 +75,7 @@ async function handleRate(quality) {
 
   if (currentIndex.value < cards.value.length - 1) {
     currentIndex.value++
+    cardStartedAt.value = Date.now()
   } else {
     sessionDone.value = true
   }

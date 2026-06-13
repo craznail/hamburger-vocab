@@ -10,7 +10,7 @@ const emit = defineEmits(['back'])
 </script>
 
 <template>
-  <header class="sticky top-0 z-30 px-4 pt-[calc(env(safe-area-inset-top)+0.55rem)]">
+  <header class="app-navbar sticky top-0 z-30 px-4">
     <div class="mx-auto flex min-h-[64px] items-center justify-between rounded-[26px] border border-white/70 bg-white/74 px-4 py-2 shadow-[0_12px_30px_rgba(94,123,189,0.08)] backdrop-blur-2xl">
       <div class="flex min-w-0 items-center gap-3">
         <button

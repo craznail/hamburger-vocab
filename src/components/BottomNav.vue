@@ -31,7 +31,7 @@ function isActive(item) {
 </script>
 
 <template>
-  <nav class="fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2">
+  <nav class="app-bottom-nav fixed inset-x-0 bottom-0 z-40 pt-2">
     <div class="mx-auto grid max-w-2xl grid-cols-5 gap-1 rounded-[28px] border border-white/70 bg-white/88 px-2 py-2 shadow-[0_-14px_34px_rgba(80,107,173,0.08)] backdrop-blur-2xl">
       <button
         v-for="item in items"
