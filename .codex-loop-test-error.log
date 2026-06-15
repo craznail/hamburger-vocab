@@ -1,0 +1,25 @@
+        Info Using installed NDK: D:\program\android\android-sdk-windows\ndk\28.0.12433566
+        Info Detected connected device: Pixel_8_Pro_API_35 (sdk_gphone64_x86_64) with target "x86_64-linux-android"
+     Running BeforeDevCommand (`npm run dev`)
+[1m[92m   Compiling[0m hamburger-vocab v0.3.0 (D:\Source\github\hamburger-vocab\src-tauri)
+[1m[92m    Finished[0m `dev` profile [unoptimized + debuginfo] target(s) in 14.23s
+        Info symlinking lib "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" in jniLibs dir "D:\\Source\\github\\hamburger-vocab\\src-tauri\\gen/android\\app/src/main/jniLibs/x86_64"
+        Info "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" requires shared lib "liblog.so"
+        Info "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" requires shared lib "libandroid.so"
+        Info "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" requires shared lib "libdl.so"
+        Info "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" requires shared lib "libm.so"
+        Info "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" requires shared lib "libc.so"
+        Info symlink at "D:\\Source\\github\\hamburger-vocab\\src-tauri\\gen/android\\app/src/main/jniLibs/arm64-v8a\\libapp_lib.so" points to "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\aarch64-linux-android\\debug\\libapp_lib.so"
+        Info symlink at "D:\\Source\\github\\hamburger-vocab\\src-tauri\\gen/android\\app/src/main/jniLibs/armeabi-v7a\\libapp_lib.so" points to "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\armv7-linux-androideabi\\debug\\libapp_lib.so"
+        Info symlink at "D:\\Source\\github\\hamburger-vocab\\src-tauri\\gen/android\\app/src/main/jniLibs/x86\\libapp_lib.so" points to "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\i686-linux-android\\debug\\libapp_lib.so"
+        Info symlink at "D:\\Source\\github\\hamburger-vocab\\src-tauri\\gen/android\\app/src/main/jniLibs/x86_64\\libapp_lib.so" points to "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so"
+        Info connection; remote_addr=127.0.0.1:1720 conn_id=0
+[1m[32m        Info[0m Using installed NDK: D:\program\android\android-sdk-windows\ndk\28.0.12433566
+[1m[92m   Compiling[0m hamburger-vocab v0.3.0 (D:\Source\github\hamburger-vocab\src-tauri)
+[1m[92m    Finished[0m `dev` profile [unoptimized + debuginfo] target(s) in 12.73s
+[1m[32m        Info[0m symlinking lib "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" in jniLibs dir "D:\\Source\\github\\hamburger-vocab\\src-tauri\\gen/android\\app/src/main/jniLibs/x86_64"
+[1m[32m        Info[0m "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" requires shared lib "liblog.so"
+[1m[32m        Info[0m "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" requires shared lib "libandroid.so"
+[1m[32m        Info[0m "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" requires shared lib "libdl.so"
+[1m[32m        Info[0m "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" requires shared lib "libm.so"
+[1m[32m        Info[0m "D:\\Source\\github\\hamburger-vocab\\src-tauri\\target\\x86_64-linux-android\\debug\\libapp_lib.so" requires shared lib "libc.so"

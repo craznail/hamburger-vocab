@@ -12,6 +12,10 @@ export async function rateCard(cardId, quality, durationSeconds = 0) {
   return await invoke('rate_card', { cardId, quality, durationSeconds })
 }
 
+export async function ratePracticeCard(cardId, quality, durationSeconds = 0) {
+  return await invoke('rate_practice_card', { cardId, quality, durationSeconds })
+}
+
 export async function getLearningStats() {
   return await invoke('get_learning_stats')
 }

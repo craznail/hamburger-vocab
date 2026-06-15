@@ -91,7 +91,7 @@ function speak(word) {
       <template #right>
         <div class="flex gap-2">
           <button
-            v-if="stats.due > 0"
+            v-if="stats.total > 0"
             class="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm cursor-pointer"
             @click="goStudy"
           >
@@ -99,7 +99,7 @@ function speak(word) {
             学习
           </button>
           <button
-            v-if="stats.due > 0"
+            v-if="stats.total > 0"
             class="flex items-center gap-1.5 px-4 py-2 border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 transition-colors text-sm cursor-pointer"
             @click="goDictation"
           >

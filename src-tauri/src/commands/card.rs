@@ -30,6 +30,32 @@ pub fn get_today_cards(
 }
 
 #[tauri::command]
+pub fn get_practice_cards(
+    state: State<'_, DbState>,
+    deck_id: Option<String>,
+) -> Result<Vec<crate::db::models::TodayCard>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    crate::db::card_repo::get_practice_cards(&conn, deck_id.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn rate_practice_card(
+    state: State<'_, DbState>,
+    card_id: String,
+    quality: i64,
+    duration_seconds: Option<i64>,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    crate::db::card_repo::add_practice_log(
+        &conn,
+        &card_id,
+        quality,
+        duration_seconds.unwrap_or(0),
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn update_card_after_review(
     state: State<'_, DbState>,
     card_id: String,

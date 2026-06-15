@@ -71,6 +71,15 @@ export const useAppStore = defineStore('app', () => {
 
   async function getTodayLearningCards(deckId = null) {
     const cards = await cardApi.getTodayCards(deckId)
+    return normalizeLearningCards(cards)
+  }
+
+  async function getPracticeCards(deckId = null) {
+    const cards = await cardApi.getPracticeCards(deckId)
+    return normalizeLearningCards(cards)
+  }
+
+  function normalizeLearningCards(cards) {
     return cards.map(c => ({
       ...c,
       inflections: parseInflections(c.inflections)
@@ -90,6 +99,10 @@ export const useAppStore = defineStore('app', () => {
     const result = await studyApi.rateCard(cardId, quality, durationSeconds)
     await Promise.all([refreshDecks(), refreshTodayCount(), refreshLearningStats()])
     return result
+  }
+
+  async function ratePracticeCard(cardId, quality, durationSeconds = 0) {
+    await studyApi.ratePracticeCard(cardId, quality, durationSeconds)
   }
 
   const sortedDecks = computed(() => {
@@ -117,6 +130,8 @@ export const useAppStore = defineStore('app', () => {
     getDeckInfo,
     getCardsForDeck,
     getTodayLearningCards,
-    rateCard
+    getPracticeCards,
+    rateCard,
+    ratePracticeCard
   }
 })

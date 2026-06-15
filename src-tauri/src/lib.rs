@@ -51,6 +51,8 @@ pub fn run() {
             commands::card::import_cards,
             commands::card::get_cards_by_deck_id,
             commands::card::get_today_cards,
+            commands::card::get_practice_cards,
+            commands::card::rate_practice_card,
             commands::card::update_card_after_review,
             commands::card::add_review_log,
             commands::card::export_db_path,

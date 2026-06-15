@@ -37,6 +37,18 @@ CREATE TABLE IF NOT EXISTS review_logs (
 
 CREATE INDEX IF NOT EXISTS idx_review_logs_card_id ON review_logs(card_id);
 CREATE INDEX IF NOT EXISTS idx_review_logs_reviewed_at ON review_logs(reviewed_at);
+
+CREATE TABLE IF NOT EXISTS practice_logs (
+    id               TEXT PRIMARY KEY,
+    card_id          TEXT NOT NULL,
+    practiced_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    quality          INTEGER NOT NULL,
+    duration_seconds INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_practice_logs_card_id ON practice_logs(card_id);
+CREATE INDEX IF NOT EXISTS idx_practice_logs_practiced_at ON practice_logs(practiced_at);
 ";
 
 pub fn run(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {

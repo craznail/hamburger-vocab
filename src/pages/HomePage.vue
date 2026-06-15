@@ -157,10 +157,9 @@ function getDeckDue(deck) {
           </div>
           <button
             class="primary-action mt-5 w-full text-sm"
-            :disabled="store.todayCount === 0"
             @click="goStudy()"
           >
-            {{ store.todayCount === 0 ? '今日任务已完成' : '开始学习' }}
+            {{ store.todayCount === 0 ? '自由复习' : '开始学习' }}
             <ArrowRight class="h-4 w-4" />
           </button>
         </div>

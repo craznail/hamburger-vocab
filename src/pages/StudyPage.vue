@@ -16,9 +16,11 @@ const currentIndex = ref(0)
 const sessionResults = ref([])
 const sessionDone = ref(false)
 const cardStartedAt = ref(Date.now())
+const mode = ref('review')
 
 const deckId = computed(() => route.query.deckId || null)
 const currentCard = computed(() => cards.value[currentIndex.value] || null)
+const isPractice = computed(() => mode.value === 'practice')
 const progress = computed(() => ({
   current: cards.value.length === 0 ? 0 : currentIndex.value + 1,
   total: cards.value.length
@@ -47,9 +49,19 @@ onMounted(async () => {
   await loadCards()
 })
 
-async function loadCards() {
+async function loadCards({ forcePractice = false } = {}) {
   try {
-    cards.value = shuffle(await store.getTodayLearningCards(deckId.value))
+    let loadedCards = []
+    if (!forcePractice) {
+      loadedCards = await store.getTodayLearningCards(deckId.value)
+    }
+    if (loadedCards.length > 0) {
+      mode.value = 'review'
+    } else {
+      mode.value = 'practice'
+      loadedCards = await store.getPracticeCards(deckId.value)
+    }
+    cards.value = shuffle(loadedCards)
     cardStartedAt.value = Date.now()
   } catch (e) {
     console.warn('加载学习卡片失败:', e)
@@ -65,7 +77,11 @@ async function handleRate(quality) {
 
   const card = currentCard.value
   const durationSeconds = Math.max(1, Math.round((Date.now() - cardStartedAt.value) / 1000))
-  await store.rateCard(card.id, quality, durationSeconds)
+  if (isPractice.value) {
+    await store.ratePracticeCard(card.id, quality, durationSeconds)
+  } else {
+    await store.rateCard(card.id, quality, durationSeconds)
+  }
 
   sessionResults.value.push({
     word: card.word,
@@ -89,7 +105,7 @@ async function continueStudy() {
   sessionDone.value = false
   currentIndex.value = 0
   sessionResults.value = []
-  await loadCards()
+  await loadCards({ forcePractice: isPractice.value })
 }
 </script>
 
@@ -98,7 +114,7 @@ async function continueStudy() {
     <NavBar @back="goHome">
       <template #left>
         <div v-if="!sessionDone">
-          <h1 class="text-sm font-black text-ink">{{ route.query.deckName || '闪卡学习' }}</h1>
+          <h1 class="text-sm font-black text-ink">{{ route.query.deckName || (isPractice ? '自由练习' : '今日复习') }}</h1>
           <p class="mt-1 text-xs text-slate-400">{{ progress.current }} / {{ progress.total }}</p>
         </div>
       </template>
@@ -114,8 +130,8 @@ async function continueStudy() {
       <div v-if="sessionDone" class="flex flex-1 items-center justify-center text-center">
         <div v-if="cards.length === 0" class="soft-panel w-full p-8">
           <CheckCircle class="mx-auto mb-4 h-16 w-16 text-green-400" />
-          <h2 class="mb-2 text-xl font-black text-ink">今日无待复习</h2>
-          <p class="mb-6 text-sm text-slate-400">所有卡片已复习完毕，明天再来吧</p>
+          <h2 class="mb-2 text-xl font-black text-ink">暂无可练习卡片</h2>
+          <p class="mb-6 text-sm text-slate-400">当前范围内还没有卡片</p>
           <button
             class="blue-gradient h-11 rounded-xl px-6 text-sm font-bold text-white"
             @click="goHome"
@@ -125,13 +141,15 @@ async function continueStudy() {
         </div>
         <div v-else class="soft-panel w-full p-8">
           <BarChart3 class="mx-auto mb-4 h-16 w-16 text-blue-400" />
-          <h2 class="mb-1 text-xl font-black text-ink">今日学习完成</h2>
-          <p class="mb-6 text-sm text-slate-400">共复习 {{ cards.length }} 张卡片</p>
+          <h2 class="mb-1 text-xl font-black text-ink">{{ isPractice ? '自由练习完成' : '今日复习完成' }}</h2>
+          <p class="mb-1 text-sm text-slate-400">共练习 {{ cards.length }} 张卡片</p>
+          <p v-if="isPractice" class="mb-6 text-xs text-slate-400">本轮结果仅记录练习，不影响复习计划</p>
+          <div v-else class="mb-5" />
 
           <div class="mb-6 grid grid-cols-3 gap-3">
             <div class="text-center">
               <div class="text-2xl font-black text-green-500">{{ masteredCount }}</div>
-              <div class="text-xs text-slate-400">认识</div>
+              <div class="text-xs text-slate-400">已掌握</div>
             </div>
             <div class="text-center">
               <div class="text-2xl font-black text-amber-400">{{ hazyCount }}</div>
@@ -148,7 +166,7 @@ async function continueStudy() {
               class="blue-gradient h-11 rounded-xl px-6 text-sm font-bold text-white"
               @click="continueStudy"
             >
-              继续学习
+              {{ isPractice ? '再练一轮' : '继续学习' }}
             </button>
             <button
               class="h-11 rounded-xl border border-blue-100 bg-white px-6 text-sm font-bold text-slate-500"
@@ -166,6 +184,7 @@ async function continueStudy() {
           :card="currentCard"
           :current="currentIndex + 1"
           :total="cards.length"
+          :practice-mode="isPractice"
           class="flex-1"
           @rate="handleRate"
         />

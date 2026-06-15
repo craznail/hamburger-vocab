@@ -23,11 +23,13 @@ const isPlaying = ref(false)
 const speechState = ref('idle')
 const ttsUnavailable = ref(false)
 const playToken = ref(0)
+const mode = ref('review')
 let speechController = null
 let delayController = null
 
 const deckId = computed(() => route.query.deckId || null)
 const currentCard = computed(() => cards.value[currentIndex.value] || null)
+const isPractice = computed(() => mode.value === 'practice')
 const progress = computed(() => ({
   current: cards.value.length === 0 ? 0 : currentIndex.value + 1,
   total: cards.value.length
@@ -73,7 +75,14 @@ function warmUpcoming(fromIndex, count = 3) {
 
 onMounted(async () => {
   try {
-    cards.value = shuffle(await store.getTodayLearningCards(deckId.value))
+    let loadedCards = await store.getTodayLearningCards(deckId.value)
+    if (loadedCards.length > 0) {
+      mode.value = 'review'
+    } else {
+      mode.value = 'practice'
+      loadedCards = await store.getPracticeCards(deckId.value)
+    }
+    cards.value = shuffle(loadedCards)
     if (cards.value.length === 0) {
       sessionDone.value = true
     } else {
@@ -231,13 +240,30 @@ function goNext() {
   }
 }
 
-function restartSession() {
+async function restartSession() {
   stopPlayback()
   closePlaybackSettings()
   currentIndex.value = 0
   answerVisible.value = false
   sessionDone.value = false
   ttsUnavailable.value = false
+  if (isPractice.value) {
+    loading.value = true
+    try {
+      cards.value = shuffle(await store.getPracticeCards(deckId.value))
+      if (cards.value.length === 0) {
+        sessionDone.value = true
+      } else {
+        warmUpcoming(0)
+      }
+    } catch (e) {
+      console.warn('重新加载自由听写失败:', e)
+      cards.value = []
+      sessionDone.value = true
+    } finally {
+      loading.value = false
+    }
+  }
 }
 
 </script>
@@ -247,7 +273,7 @@ function restartSession() {
     <NavBar @back="goHome">
       <template #left>
         <div v-if="!loading && !sessionDone">
-          <h1 class="text-sm font-black text-ink">听写模式</h1>
+          <h1 class="text-sm font-black text-ink">{{ isPractice ? '自由听写' : '今日听写' }}</h1>
           <p class="mt-1 text-xs text-slate-400">{{ progress.current }} / {{ progress.total }}</p>
         </div>
       </template>
@@ -277,10 +303,10 @@ function restartSession() {
       <div class="soft-panel w-full rounded-2xl p-8 text-center">
         <CheckCircle class="mx-auto mb-4 h-16 w-16 text-green-400" />
         <h2 class="mb-2 text-xl font-black text-ink">
-          {{ cards.length === 0 ? '今日无待听写' : '本轮播报完成' }}
+          {{ cards.length === 0 ? '暂无可听写卡片' : (isPractice ? '自由听写完成' : '本轮播报完成') }}
         </h2>
         <p class="mb-6 text-sm text-slate-400">
-          {{ cards.length === 0 ? '当前没有到期单词，明天再来吧' : `共播报 ${cards.length} 个单词` }}
+          {{ cards.length === 0 ? '当前范围内还没有卡片' : `共播报 ${cards.length} 个单词` }}
         </p>
         <div class="flex justify-center gap-3">
           <button

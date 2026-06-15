@@ -7,7 +7,8 @@ import { computeNextReview } from '../utils/sm2'
 const props = defineProps({
   card: { type: Object, required: true },
   current: { type: Number, default: 0 },
-  total: { type: Number, default: 0 }
+  total: { type: Number, default: 0 },
+  practiceMode: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['rate'])
@@ -87,7 +88,7 @@ function speak(event) {
         >
           <Heart class="h-6 w-6" />
           <span class="text-sm font-black">忘记</span>
-          <span class="text-[10px] text-white/75">{{ intervals.forgot }} 天后复习</span>
+          <span class="text-[10px] text-white/75">{{ practiceMode ? '仅记录练习' : `${intervals.forgot} 天后复习` }}</span>
         </button>
         <button
           class="warm-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-amber-200/60 disabled:grayscale disabled:opacity-45"
@@ -96,7 +97,7 @@ function speak(event) {
         >
           <Star class="h-6 w-6" />
           <span class="text-sm font-black">模糊</span>
-          <span class="text-[10px] text-white/75">{{ intervals.hazy }} 天后复习</span>
+          <span class="text-[10px] text-white/75">{{ practiceMode ? '仅记录练习' : `${intervals.hazy} 天后复习` }}</span>
         </button>
         <button
           class="green-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-green-200/60 disabled:grayscale disabled:opacity-45"
@@ -104,8 +105,8 @@ function speak(event) {
           @click="emit('rate', 5)"
         >
           <Trees class="h-6 w-6" />
-          <span class="text-sm font-black">认识</span>
-          <span class="text-[10px] text-white/75">{{ intervals.mastered }} 天后复习</span>
+          <span class="text-sm font-black">已掌握</span>
+          <span class="text-[10px] text-white/75">{{ practiceMode ? '仅记录练习' : `${intervals.mastered} 天后复习` }}</span>
         </button>
       </div>
     </div>

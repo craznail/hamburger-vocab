@@ -12,6 +12,10 @@ export async function getTodayCards(deckId = null) {
   return await invoke('get_today_cards', { deckId: deckId || null })
 }
 
+export async function getPracticeCards(deckId = null) {
+  return await invoke('get_practice_cards', { deckId: deckId || null })
+}
+
 export async function getExportDbPath() {
   return await invoke('export_db_path')
 }
