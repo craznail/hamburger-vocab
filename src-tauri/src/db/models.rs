@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct Deck {
     pub id: String,
     pub name: String,
@@ -11,16 +13,18 @@ pub struct Deck {
     pub due_count: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct DeckInfo {
     pub id: String,
     pub name: String,
     pub created_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct Card {
     pub id: String,
     pub deck_id: String,
@@ -35,8 +39,9 @@ pub struct Card {
     pub last_review_at: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct TodayCard {
     pub id: String,
     pub word: String,
@@ -51,8 +56,9 @@ pub struct TodayCard {
     pub deck_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct DeckStats {
     pub total: i64,
     pub mastered: i64,
@@ -76,16 +82,18 @@ pub struct ReviewUpdate {
     pub next_review: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct DailyActivity {
     pub date: String,
     pub review_count: i64,
     pub study_seconds: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct LearningStats {
     pub total_cards: i64,
     pub mastered_cards: i64,

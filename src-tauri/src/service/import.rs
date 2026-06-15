@@ -3,25 +3,29 @@ use crate::db::deck_repo;
 use crate::db::models::CardImport;
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct ParsedRow {
     pub word: String,
     pub inflections: Vec<String>,
     pub definition: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct ParseError {
     pub line: usize,
     pub text: String,
     pub msg: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct ParseResult {
     pub format: String,
     pub rows: Vec<ParsedRow>,
@@ -198,8 +202,9 @@ pub fn import_from_text(
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct ImportFromTextResult {
     pub deck_id: String,
     pub deck_name: String,

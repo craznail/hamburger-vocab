@@ -3,9 +3,11 @@ use crate::db::card_repo;
 use crate::db::models::ReviewUpdate;
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct RateResult {
     pub ef: f64,
     pub interval: i64,

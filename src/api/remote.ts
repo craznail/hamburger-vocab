@@ -10,34 +10,29 @@ import { invoke } from '@tauri-apps/api/core'
 
 const NOT_IMPLEMENTED = '服务端功能尚未实现，请等待后续版本更新'
 
-/**
- * Login to remote server (reserved).
- */
-export async function login(username, password) {
+export async function login(username: string, password: string): Promise<unknown> {
   try {
-    return await invoke('login', { username, password })
+    return await invoke<unknown>('login', { username, password })
   } catch {
     throw new Error(NOT_IMPLEMENTED)
   }
 }
 
-/**
- * Sync local progress to remote server (reserved).
- */
-export async function syncProgress() {
+export async function syncProgress(): Promise<unknown> {
   try {
-    return await invoke('sync_progress')
+    return await invoke<unknown>('sync_progress')
   } catch {
     throw new Error(NOT_IMPLEMENTED)
   }
 }
 
-/**
- * Get current login status (reserved).
- */
-export async function getAuthStatus() {
+export interface AuthStatus {
+  loggedIn: boolean
+}
+
+export async function getAuthStatus(): Promise<AuthStatus> {
   try {
-    return await invoke('get_auth_status')
+    return await invoke<AuthStatus>('get_auth_status')
   } catch {
     return { loggedIn: false }
   }

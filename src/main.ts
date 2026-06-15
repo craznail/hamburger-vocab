@@ -5,7 +5,7 @@ import router from './router'
 import './style.css'
 
 const isTauriAndroid =
-  Boolean(window.__TAURI_INTERNALS__) &&
+  Boolean((window as unknown as Record<string, unknown>).__TAURI_INTERNALS__) &&
   /Android/i.test(navigator.userAgent)
 
 if (isTauriAndroid) {
