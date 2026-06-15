@@ -1,5 +1,7 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
+use tauri::State;
 
+use crate::http::HttpClientState;
 use crate::service::tts::{
     provider_for, validate_request, TtsSynthesisRequest, TtsSynthesisResponse,
 };
@@ -7,14 +9,13 @@ use crate::service::tts::{
 #[tauri::command]
 pub async fn synthesize_speech(
     request: TtsSynthesisRequest,
+    client_state: State<'_, HttpClientState>,
 ) -> Result<TtsSynthesisResponse, String> {
     validate_request(&request)?;
     let provider = provider_for(&request.provider)?;
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|error| format!("创建 TTS HTTP 客户端失败: {error}"))?;
-    let audio = provider.synthesize(&client, &request).await?;
+    let audio = provider
+        .synthesize(&client_state.client, &request)
+        .await?;
 
     Ok(TtsSynthesisResponse {
         audio_base64: STANDARD.encode(audio.bytes),

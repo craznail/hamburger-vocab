@@ -1,6 +1,7 @@
 use crate::db::card_repo;
 use crate::db::deck_repo;
 use crate::db::models::CardImport;
+use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -146,42 +147,55 @@ pub fn parse_txt_content(text: &str) -> ParseResult {
 }
 
 /// Import from raw text: parse + create deck + import cards, all in one operation.
+/// Executes in a transaction to ensure atomicity.
 pub fn import_from_text(
     conn: &rusqlite::Connection,
     deck_name: &str,
     text: &str,
-) -> Result<ImportFromTextResult, String> {
+) -> AppResult<ImportFromTextResult> {
     let parse_result = parse_txt_content(text);
 
     if parse_result.rows.is_empty() {
-        return Err("文件中没有有效的单词".to_string());
+        return Err(AppError::InvalidInput("文件中没有有效的单词".into()));
     }
 
-    // Create deck
-    let deck_id = deck_repo::create_deck(conn, deck_name).map_err(|e| e.to_string())?;
+    // Execute create deck + import cards in a transaction
+    conn.execute_batch("BEGIN IMMEDIATE")?;
 
-    // Convert parsed rows to CardImport
-    let cards: Vec<CardImport> = parse_result
-        .rows
-        .iter()
-        .map(|r| CardImport {
-            word: r.word.clone(),
-            inflections: r.inflections.clone(),
-            definition: r.definition.clone(),
+    let result = (|| -> Result<ImportFromTextResult, rusqlite::Error> {
+        let deck_id = deck_repo::create_deck(conn, deck_name)?;
+
+        let cards: Vec<CardImport> = parse_result
+            .rows
+            .iter()
+            .map(|r| CardImport {
+                word: r.word.clone(),
+                inflections: r.inflections.clone(),
+                definition: r.definition.clone(),
+            })
+            .collect();
+
+        let count = cards.len();
+        card_repo::import_cards(conn, &deck_id, &cards)?;
+
+        Ok(ImportFromTextResult {
+            deck_id,
+            deck_name: deck_name.to_string(),
+            count,
+            parse_result,
         })
-        .collect();
+    })();
 
-    let count = cards.len();
-
-    // Import cards
-    card_repo::import_cards(conn, &deck_id, &cards).map_err(|e| e.to_string())?;
-
-    Ok(ImportFromTextResult {
-        deck_id,
-        deck_name: deck_name.to_string(),
-        count,
-        parse_result,
-    })
+    match result {
+        Ok(r) => {
+            conn.execute_batch("COMMIT")?;
+            Ok(r)
+        }
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            Err(AppError::Database(e))
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -97,12 +97,20 @@ export const useAppStore = defineStore('app', () => {
 
   async function rateCard(cardId, quality, durationSeconds = 0) {
     const result = await studyApi.rateCard(cardId, quality, durationSeconds)
-    await Promise.all([refreshDecks(), refreshTodayCount(), refreshLearningStats()])
+    // Optimistic local update: each review decreases todayCount by at most 1
+    if (todayCount.value > 0) {
+      todayCount.value -= 1
+    }
     return result
   }
 
   async function ratePracticeCard(cardId, quality, durationSeconds = 0) {
     await studyApi.ratePracticeCard(cardId, quality, durationSeconds)
+  }
+
+  /** Full refresh — call after completing a study session or when entering a data page. */
+  async function refreshAll() {
+    await Promise.all([refreshDecks(), refreshTodayCount(), refreshLearningStats()])
   }
 
   const sortedDecks = computed(() => {
@@ -124,6 +132,7 @@ export const useAppStore = defineStore('app', () => {
     refreshDecks,
     refreshTodayCount,
     refreshLearningStats,
+    refreshAll,
     importFile,
     removeDeck,
     getDeckStats,

@@ -4,11 +4,13 @@ use tauri::Manager;
 mod algorithm;
 mod commands;
 mod db;
+mod error;
 mod http;
 mod platform;
 mod service;
 
 use db::DbState;
+use http::HttpClientState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -34,6 +36,7 @@ pub fn run() {
             app.manage(DbState {
                 conn: Mutex::new(conn),
             });
+            app.manage(HttpClientState::default());
 
             Ok(())
         })
@@ -53,8 +56,6 @@ pub fn run() {
             commands::card::get_today_cards,
             commands::card::get_practice_cards,
             commands::card::rate_practice_card,
-            commands::card::update_card_after_review,
-            commands::card::add_review_log,
             commands::card::export_db_path,
             commands::card::read_txt_content,
             // Import commands (new integrated commands)

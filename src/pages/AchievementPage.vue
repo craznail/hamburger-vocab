@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Award, Medal, ShieldCheck, Star, Trophy } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
@@ -8,6 +8,10 @@ import NavBar from '../components/NavBar.vue'
 
 const router = useRouter()
 const store = useAppStore()
+
+onMounted(() => {
+  store.refreshAll()
+})
 
 const stats = computed(() => store.learningStats || {
   streakDays: 0,

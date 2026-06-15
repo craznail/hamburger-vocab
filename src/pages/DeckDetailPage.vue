@@ -83,10 +83,10 @@ function speak(word) {
 </script>
 
 <template>
-  <div v-if="loading" class="flex items-center justify-center min-h-screen">
+  <div v-if="loading" class="app-page flex items-center justify-center">
     <p class="text-gray-400">加载中...</p>
   </div>
-  <div v-else class="min-h-screen flex flex-col">
+  <div v-else class="app-page flex flex-col">
     <NavBar @back="goBack">
       <template #right>
         <div class="flex gap-2">

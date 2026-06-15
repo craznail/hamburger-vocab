@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, BookOpen, Box, Code2, Globe2, Languages, Plus, Search } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
@@ -8,6 +8,10 @@ import NavBar from '../components/NavBar.vue'
 
 const router = useRouter()
 const store = useAppStore()
+
+onMounted(() => {
+  store.refreshAll()
+})
 
 const deckIcons = [Box, Languages, Code2, Globe2, BookOpen]
 const deckColors = [

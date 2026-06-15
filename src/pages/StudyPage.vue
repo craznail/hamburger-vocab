@@ -94,6 +94,8 @@ async function handleRate(quality) {
     cardStartedAt.value = Date.now()
   } else {
     sessionDone.value = true
+    // Refresh global stats once when the session completes
+    store.refreshAll()
   }
 }
 

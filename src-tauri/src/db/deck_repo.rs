@@ -42,7 +42,7 @@ pub fn get_decks(conn: &Connection) -> Result<Vec<Deck>, rusqlite::Error> {
 }
 
 pub fn delete_deck(conn: &Connection, id: &str) -> Result<(), rusqlite::Error> {
-    conn.execute("DELETE FROM cards WHERE deck_id = ?1", params![id])?;
+    // ON DELETE CASCADE handles cards and review_logs automatically
     conn.execute("DELETE FROM decks WHERE id = ?1", params![id])?;
     Ok(())
 }

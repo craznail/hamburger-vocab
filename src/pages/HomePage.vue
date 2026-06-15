@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
 import { ArrowRight, BookOpen, Brain, CheckSquare, Flame, GraduationCap, Loader, Play, Plus, Search, Sparkles, Volume2 } from 'lucide-vue-next'
@@ -9,6 +9,10 @@ import BottomNav from '../components/BottomNav.vue'
 
 const router = useRouter()
 const store = useAppStore()
+
+onMounted(() => {
+  store.refreshAll()
+})
 
 const ttsWord = ref('')
 const ttsState = ref('idle')

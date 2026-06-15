@@ -1,28 +1,18 @@
-// HTTP client for server communication (reserved).
-// Will be implemented when server-side features are needed.
+use reqwest::Client;
 
-#[allow(dead_code)]
-pub struct ApiClient {
-    base_url: String,
-    client: reqwest::Client,
-    token: Option<String>,
+/// Shared HTTP client for external API requests.
+/// Created once at startup and reused across all TTS synthesis calls.
+pub struct HttpClientState {
+    pub client: Client,
 }
 
-#[allow(dead_code)]
-impl ApiClient {
-    pub fn new(base_url: &str) -> Self {
+impl Default for HttpClientState {
+    fn default() -> Self {
         Self {
-            base_url: base_url.to_string(),
-            client: reqwest::Client::new(),
-            token: None,
+            client: Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("failed to create HTTP client"),
         }
-    }
-
-    pub fn set_token(&mut self, token: String) {
-        self.token = Some(token);
-    }
-
-    pub fn clear_token(&mut self) {
-        self.token = None;
     }
 }
