@@ -12,19 +12,15 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.core.view.updatePadding
 import java.util.Locale
 
 class MainActivity : TauriActivity() {
   private var ttsBridge: TtsBridge? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    WindowCompat.setDecorFitsSystemWindows(window, false)
     super.onCreate(savedInstanceState)
 
-    // Keep drawing edge-to-edge, then apply the actual system and cutout
-    // insets to the WebView below. This works on gesture/3-button navigation,
-    // display cutouts, landscape, and Android's enforced edge-to-edge mode.
-    WindowCompat.setDecorFitsSystemWindows(window, false)
     window.statusBarColor = Color.TRANSPARENT
     window.navigationBarColor = Color.TRANSPARENT
     WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -38,21 +34,9 @@ class MainActivity : TauriActivity() {
     ttsBridge = TtsBridge(this)
     webView.addJavascriptInterface(ttsBridge!!, "NativeTts")
     webView.addJavascriptInterface(FileResolver(this), "NativeFileResolver")
+    webView.addJavascriptInterface(SafeAreaBridge(this), "NativeSafeArea")
 
-    ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
-      val safeInsets = windowInsets.getInsets(
-        WindowInsetsCompat.Type.systemBars() or
-          WindowInsetsCompat.Type.displayCutout()
-      )
-      view.updatePadding(
-        left = safeInsets.left,
-        top = safeInsets.top,
-        right = safeInsets.right,
-        bottom = safeInsets.bottom
-      )
-      WindowInsetsCompat.CONSUMED
-    }
-    ViewCompat.requestApplyInsets(webView)
+    ViewCompat.requestApplyInsets(window.decorView)
   }
 
   override fun onDestroy() {
@@ -60,6 +44,29 @@ class MainActivity : TauriActivity() {
     ttsBridge = null
     super.onDestroy()
   }
+}
+
+private class SafeAreaBridge(private val activity: MainActivity) {
+  private fun safeInsets() =
+    ViewCompat.getRootWindowInsets(activity.window.decorView)?.getInsets(
+      WindowInsetsCompat.Type.systemBars() or
+        WindowInsetsCompat.Type.displayCutout()
+    )
+
+  private fun toCssPixels(value: Int): Float =
+    value / activity.resources.displayMetrics.density
+
+  @JavascriptInterface
+  fun getTop(): Float = toCssPixels(safeInsets()?.top ?: 0)
+
+  @JavascriptInterface
+  fun getRight(): Float = toCssPixels(safeInsets()?.right ?: 0)
+
+  @JavascriptInterface
+  fun getBottom(): Float = toCssPixels(safeInsets()?.bottom ?: 0)
+
+  @JavascriptInterface
+  fun getLeft(): Float = toCssPixels(safeInsets()?.left ?: 0)
 }
 
 private class TtsBridge(context: Context) {
