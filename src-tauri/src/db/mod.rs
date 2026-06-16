@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 pub mod card_repo;
 pub mod deck_repo;
+pub mod error_repo;
 pub mod migration;
 pub mod models;
 pub mod study_repo;

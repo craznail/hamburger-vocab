@@ -1,6 +1,6 @@
 <script setup>
 import { useRoute, useRouter } from 'vue-router'
-import { BarChart3, BookOpen, GraduationCap, Home, UserRound } from 'lucide-vue-next'
+import { BarChart3, BookOpen, GraduationCap, Home, NotebookPen, UserRound } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -9,6 +9,7 @@ const items = [
   { label: '首页', icon: Home, route: 'Home' },
   { label: '知识库', icon: BookOpen, route: 'Library' },
   { label: '学习', icon: GraduationCap, route: 'Study' },
+  { label: '错题', icon: NotebookPen, route: 'ErrorNotebook' },
   { label: '统计', icon: BarChart3, route: 'Stats' },
   { label: '我的', icon: UserRound, route: 'Profile' }
 ]
@@ -17,6 +18,7 @@ const routeGroups = {
   Home: ['Home'],
   Library: ['Library', 'DeckDetail', 'Import'],
   Study: ['Study', 'Dictation'],
+  ErrorNotebook: ['ErrorNotebook', 'ErrorAdd', 'ErrorDetail', 'ErrorReview'],
   Stats: ['Stats', 'Achievements'],
   Profile: ['Profile', 'Settings']
 }
@@ -32,7 +34,7 @@ function isActive(item) {
 
 <template>
   <nav class="app-bottom-nav fixed inset-x-0 bottom-0 z-40 pt-2">
-    <div class="mx-auto grid max-w-2xl grid-cols-5 gap-1 rounded-[28px] border border-white/70 bg-white/88 px-2 py-2 shadow-[0_-14px_34px_rgba(80,107,173,0.08)] backdrop-blur-2xl">
+    <div class="mx-auto grid max-w-2xl grid-cols-6 gap-1 rounded-[28px] border border-white/70 bg-white/88 px-2 py-2 shadow-[0_-14px_34px_rgba(80,107,173,0.08)] backdrop-blur-2xl">
       <button
         v-for="item in items"
         :key="item.label"

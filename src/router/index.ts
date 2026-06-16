@@ -48,6 +48,26 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/DictationPage.vue'),
   },
   {
+    path: '/errors',
+    name: 'ErrorNotebook',
+    component: () => import('../pages/ErrorNotebookPage.vue'),
+  },
+  {
+    path: '/errors/add',
+    name: 'ErrorAdd',
+    component: () => import('../pages/ErrorAddPage.vue'),
+  },
+  {
+    path: '/errors/review',
+    name: 'ErrorReview',
+    component: () => import('../pages/ErrorReviewPage.vue'),
+  },
+  {
+    path: '/errors/:id',
+    name: 'ErrorDetail',
+    component: () => import('../pages/ErrorDetailPage.vue'),
+  },
+  {
     path: '/deck/:id',
     name: 'DeckDetail',
     component: () => import('../pages/DeckDetailPage.vue'),

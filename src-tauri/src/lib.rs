@@ -58,6 +58,18 @@ pub fn run() {
             commands::card::rate_practice_card,
             commands::card::export_db_path,
             commands::card::read_txt_content,
+            // Error notebook commands
+            commands::error_item::create_error_draft,
+            commands::error_item::get_error_notebooks,
+            commands::error_item::get_error_items,
+            commands::error_item::get_due_error_items,
+            commands::error_item::save_error_item,
+            commands::error_item::analyze_error_draft,
+            commands::error_item::rate_error_item,
+            commands::error_item::sync_error_items,
+            // Mobile auth / sync commands
+            commands::mobile::mobile_login,
+            commands::mobile::get_auth_status,
             // Import commands (new integrated commands)
             commands::import::rate_card,
             commands::import::parse_txt_content,
