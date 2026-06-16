@@ -25,6 +25,15 @@ function toggleReveal() {
   revealed.value = !revealed.value
 }
 
+function handleRate(quality) {
+  if (!revealed.value) {
+    revealed.value = true
+    return
+  }
+
+  emit('rate', quality)
+}
+
 function speak(event) {
   event.stopPropagation()
   speakWord(props.card.word, {
@@ -42,16 +51,16 @@ function speak(event) {
     @keydown.space.prevent="toggleReveal"
     tabindex="0"
   >
-      <div class="soft-panel relative flex min-h-[380px] flex-1 flex-col justify-center overflow-hidden rounded-[32px] px-6 py-9 text-center">
-        <div class="absolute bottom-[-2.5rem] right-[-1.2rem] h-40 w-40 rounded-[2.6rem] bg-blue-50/90 rotate-12" />
-        <div class="absolute bottom-10 right-10 h-20 w-20 rounded-[1.75rem] border border-blue-100 bg-white/72" />
-        <span class="mx-auto mb-7 rounded-xl bg-[#eff3ff] px-3 py-1.5 text-xs font-black text-blue-600">问题</span>
+    <div class="soft-panel relative flex min-h-[380px] flex-1 flex-col overflow-hidden rounded-[32px] px-6 py-9 text-center">
+      <div class="absolute bottom-[-2.5rem] right-[-1.2rem] h-40 w-40 rounded-[2.6rem] bg-blue-50/90 rotate-12" />
+      <div class="absolute bottom-10 right-10 h-20 w-20 rounded-[1.75rem] border border-blue-100 bg-white/72" />
 
+      <div class="flex min-h-[150px] flex-col items-center justify-center">
         <div class="relative mb-4 flex items-center justify-center gap-2">
           <h2 class="max-w-[260px] text-[2rem] font-black leading-snug tracking-[-0.03em] text-ink">{{ card.word }}</h2>
           <button
             class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-500 transition-colors hover:bg-blue-100"
-            @click="speak"
+            @click.stop="speak"
             :title="ttsState === 'unavailable' ? 'TTS 不可用' : '发音'"
             :disabled="ttsState === 'loading'"
           >
@@ -60,12 +69,14 @@ function speak(event) {
             <Volume2 v-else class="h-4 w-4" />
           </button>
         </div>
+      </div>
 
-        <p v-if="!revealed" class="relative text-xs font-medium text-slate-400">点击卡片查看答案</p>
-        <p v-if="ttsState === 'unavailable'" class="relative mt-2 text-xs text-slate-400">发音不可用，请检查网络或 TTS 设置</p>
+      <div class="flex min-h-[104px] flex-col items-center justify-start">
+        <p v-if="!revealed" class="text-xs font-medium text-slate-400">点击卡片或下方按钮查看答案</p>
+        <p v-if="ttsState === 'unavailable'" class="mt-2 text-xs text-slate-400">发音不可用，请检查网络或 TTS 设置</p>
 
         <transition name="reveal">
-          <div v-if="revealed" class="relative flex flex-col items-center">
+          <div v-show="revealed" class="mt-1 flex flex-col items-center">
             <div
               v-if="card.inflections && card.inflections.length"
               class="mb-3 text-sm font-semibold text-blue-500"
@@ -80,29 +91,26 @@ function speak(event) {
         </transition>
       </div>
 
-      <div class="grid grid-cols-3 gap-4 pt-6" @click.stop>
+      <div class="grid grid-cols-3 gap-4 pt-6">
         <button
-          class="red-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-red-200/60 disabled:grayscale disabled:opacity-45"
-          :disabled="!revealed"
-          @click="emit('rate', 0)"
+          class="red-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-red-200/60"
+          @click.stop="handleRate(0)"
         >
           <Heart class="h-6 w-6" />
           <span class="text-sm font-black">忘记</span>
           <span class="text-[10px] text-white/75">{{ practiceMode ? '仅记录练习' : `${intervals.forgot} 天后复习` }}</span>
         </button>
         <button
-          class="warm-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-amber-200/60 disabled:grayscale disabled:opacity-45"
-          :disabled="!revealed"
-          @click="emit('rate', 3)"
+          class="warm-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-amber-200/60"
+          @click.stop="handleRate(3)"
         >
           <Star class="h-6 w-6" />
           <span class="text-sm font-black">模糊</span>
           <span class="text-[10px] text-white/75">{{ practiceMode ? '仅记录练习' : `${intervals.hazy} 天后复习` }}</span>
         </button>
         <button
-          class="green-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-green-200/60 disabled:grayscale disabled:opacity-45"
-          :disabled="!revealed"
-          @click="emit('rate', 5)"
+          class="green-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-green-200/60"
+          @click.stop="handleRate(5)"
         >
           <Trees class="h-6 w-6" />
           <span class="text-sm font-black">已掌握</span>
@@ -110,19 +118,23 @@ function speak(event) {
         </button>
       </div>
     </div>
+  </div>
 </template>
 
 <style scoped>
 .reveal-enter-active {
-  transition: all 0.3s ease-out;
+  transition: all 0.18s ease-out;
 }
+
 .reveal-leave-active {
-  transition: all 0.2s ease-in;
+  transition: all 0.12s ease-in;
 }
+
 .reveal-enter-from {
   opacity: 0;
   transform: translateY(-6px);
 }
+
 .reveal-leave-to {
   opacity: 0;
   transform: translateY(-6px);
