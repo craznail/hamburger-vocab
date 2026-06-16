@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { AlertCircle, ArrowRight, Cloud, ImagePlus, Loader, NotebookPen, RefreshCw } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
 import BottomNav from '../components/BottomNav.vue'
 import * as errorApi from '../api/errorItem'
 import * as authApi from '../api/auth'
+import { useErrorNotebookStore } from '../stores/useErrorNotebookStore'
 
 const router = useRouter()
-const notebooks = ref<errorApi.ErrorNotebook[]>([])
-const items = ref<errorApi.ErrorItem[]>([])
-const auth = ref<authApi.AuthStatus>({ loggedIn: false })
-const loading = ref(false)
+const notebookStore = useErrorNotebookStore()
+const { notebooks, items, auth, loading, dueCount, pendingCount, initialized } = storeToRefs(notebookStore)
 const syncMessage = ref('')
 const loginForm = ref({
   serverUrl: localStorage.getItem('wrongNotebookServerUrl') || 'http://localhost:3000',
@@ -19,27 +19,17 @@ const loginForm = ref({
   password: '',
 })
 
-const dueCount = computed(() => notebooks.value.reduce((sum, n) => sum + (n.dueCount || 0), 0))
-const pendingCount = computed(() => items.value.filter(i => i.syncStatus !== 'synced').length)
-
-onMounted(load)
-
-async function load() {
-  loading.value = true
-  try {
-    auth.value = await authApi.getAuthStatus()
-    notebooks.value = await errorApi.getErrorNotebooks()
-    items.value = await errorApi.getErrorItems()
-  } finally {
-    loading.value = false
-  }
-}
+onMounted(() => {
+  void notebookStore.ensureFresh()
+})
 
 async function login() {
   syncMessage.value = ''
   auth.value = await authApi.login(loginForm.value.serverUrl, loginForm.value.email, loginForm.value.password)
   localStorage.setItem('wrongNotebookServerUrl', loginForm.value.serverUrl)
   syncMessage.value = '已登录远程服务端'
+  notebookStore.invalidate()
+  void notebookStore.refresh(true)
 }
 
 async function sync() {
@@ -47,7 +37,8 @@ async function sync() {
   try {
     await errorApi.syncErrorItems()
     syncMessage.value = '同步完成'
-    await load()
+    notebookStore.invalidate()
+    await notebookStore.refresh(true)
   } catch (e) {
     syncMessage.value = e instanceof Error ? e.message : String(e)
   }
@@ -131,6 +122,15 @@ async function sync() {
               <span class="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-500">L{{ item.masteryLevel }}</span>
             </div>
           </button>
+        </div>
+
+        <div v-else-if="!initialized && loading" class="grid gap-3">
+          <div v-for="placeholder in 3" :key="placeholder" class="soft-panel p-4 text-left">
+            <div class="animate-pulse">
+              <div class="h-4 w-3/4 rounded-full bg-blue-100"></div>
+              <div class="mt-3 h-3 w-1/2 rounded-full bg-slate-100"></div>
+            </div>
+          </div>
         </div>
 
         <div v-else class="soft-panel p-8 text-center">

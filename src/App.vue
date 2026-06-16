@@ -1,11 +1,14 @@
 <script setup>
 import { onMounted } from 'vue'
 import { useAppStore } from './stores/useAppStore'
+import { useErrorNotebookStore } from './stores/useErrorNotebookStore'
 
 const store = useAppStore()
+const errorNotebookStore = useErrorNotebookStore()
 
 onMounted(async () => {
   await store.init()
+  errorNotebookStore.prime()
 })
 </script>
 
