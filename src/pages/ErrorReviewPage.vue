@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import {
+  ArrowLeft,
   Brain,
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
   Clock3,
+  Ellipsis,
   Lightbulb,
   NotebookPen,
   RotateCcw,
   Sparkles,
-  Tag,
   Target,
 } from 'lucide-vue-next'
-import NavBar from '../components/NavBar.vue'
 import * as errorApi from '../api/errorItem'
 
 const router = useRouter()
@@ -22,34 +24,30 @@ const index = ref(0)
 const revealed = ref(false)
 const startedAt = ref(Date.now())
 const done = ref(false)
+const activeTab = ref<'answer' | 'mistake'>('answer')
+const knowledgeExpanded = ref(false)
+const knowledgeOverflowing = ref(false)
+const knowledgeTagsRef = ref<HTMLElement | null>(null)
 
 const current = computed(() => items.value[index.value] || null)
 const imageSrc = computed(() => current.value?.localImagePath ? convertFileSrc(current.value.localImagePath) : current.value?.remoteImageUrl || '')
 const progressLabel = computed(() => done.value ? '完成' : `${index.value + 1} / ${items.value.length}`)
-const masteryLabel = computed(() => {
-  if (!current.value) return '待复习'
-  if (current.value.masteryLevel >= 2) return '已掌握'
-  if (current.value.masteryLevel === 1) return '复习中'
-  return '新错题'
-})
-const mistakeStatusLabel = computed(() => {
-  switch (current.value?.mistakeStatus) {
-    case 'wrong_attempt':
-      return '答错了'
-    case 'not_attempted':
-      return '未作答'
-    case 'unknown':
-      return '待判断'
-    default:
-      return '待判断'
-  }
-})
 const knowledgePoints = computed(() => current.value ? errorApi.parseKnowledgePoints(current.value.knowledgePoints) : [])
 
 onMounted(async () => {
   items.value = await errorApi.getDueErrorItems()
   if (items.value.length === 0) done.value = true
+  await nextTick()
+  updateKnowledgeOverflow()
 })
+
+watch(
+  () => [current.value?.id, knowledgePoints.value.join('|')],
+  async () => {
+    await nextTick()
+    updateKnowledgeOverflow()
+  },
+)
 
 async function rate(quality: number) {
   if (!current.value) return
@@ -58,223 +56,607 @@ async function rate(quality: number) {
   if (index.value < items.value.length - 1) {
     index.value++
     revealed.value = false
+    activeTab.value = 'answer'
+    knowledgeExpanded.value = false
+    knowledgeOverflowing.value = false
     startedAt.value = Date.now()
+    requestAnimationFrame(() => updateKnowledgeOverflow())
   } else {
     done.value = true
   }
 }
+
+function updateKnowledgeOverflow() {
+  const el = knowledgeTagsRef.value
+  if (!el) {
+    knowledgeOverflowing.value = false
+    return
+  }
+
+  const chips = Array.from(el.querySelectorAll<HTMLElement>('.error-chip'))
+  if (chips.length <= 1) {
+    knowledgeOverflowing.value = false
+    return
+  }
+
+  const firstTop = chips[0]?.offsetTop ?? 0
+  knowledgeOverflowing.value = chips.some(chip => chip.offsetTop > firstTop + 1)
+  if (!knowledgeOverflowing.value) knowledgeExpanded.value = false
+}
 </script>
 
 <template>
-  <div class="app-page min-h-screen">
-    <NavBar @back="router.push({ name: 'ErrorNotebook' })">
-      <template #left>
-        <div>
-          <h1 class="text-sm font-black text-ink">错题复习</h1>
-          <p class="mt-1 text-xs text-slate-400">{{ progressLabel }}</p>
-        </div>
-      </template>
-    </NavBar>
+  <div class="app-page review-page min-h-screen">
+    <header class="error-header header-safe-top">
+      <button class="error-header-button" type="button" @click="router.push({ name: 'ErrorNotebook' })">
+        <ArrowLeft class="h-6 w-6" />
+      </button>
+      <div class="text-center">
+        <h1 class="error-header-title">错题复习</h1>
+        <p class="error-header-subtitle">{{ progressLabel }}</p>
+      </div>
+      <button class="error-header-button" type="button" aria-label="more">
+        <Ellipsis class="h-6 w-6" />
+      </button>
+    </header>
 
-    <main class="grid gap-4 px-4 pt-4">
-      <section v-if="done" class="soft-panel overflow-hidden p-0">
-        <div class="detail-band detail-band-review p-5 text-white">
-          <CheckCircle class="mb-4 h-14 w-14 text-white/90" />
-          <h2 class="text-2xl font-black">本轮错题复习完成</h2>
-          <p class="mt-2 max-w-[18rem] text-sm leading-6 text-blue-100/90">
-            这次一共完成 {{ items.length }} 道题。趁记忆还新，回到错题本挑一题再补一句提醒会更稳。
-          </p>
-        </div>
-
-        <div class="grid gap-4 p-4">
-          <div class="grid grid-cols-2 gap-3">
-            <div class="tiny-card flex items-center gap-3 p-3">
-              <div class="icon-well bg-green-50 text-green-500">
-                <Target class="h-4 w-4" />
-              </div>
-              <div>
-                <p class="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">完成题数</p>
-                <p class="text-sm font-bold text-ink">{{ items.length }} 道</p>
-              </div>
-            </div>
-            <div class="tiny-card flex items-center gap-3 p-3">
-              <div class="icon-well bg-blue-50 text-blue-500">
-                <Clock3 class="h-4 w-4" />
-              </div>
-              <div>
-                <p class="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">当前状态</p>
-                <p class="text-sm font-bold text-ink">今日已清空</p>
-              </div>
-            </div>
-          </div>
-
-          <button class="blue-gradient h-12 rounded-2xl text-sm font-bold text-white" @click="router.push({ name: 'ErrorNotebook' })">
-            返回错题本
-          </button>
-        </div>
+    <main class="error-main">
+      <section v-if="done" class="error-hero-card error-done-card">
+        <CheckCircle class="mb-4 h-14 w-14 text-[#2f7cff]" />
+        <h2 class="error-done-title">本轮错题复习完成</h2>
+        <p class="error-done-text">这次一共完成 {{ items.length }} 道题。回到错题本继续整理一两道，记忆会更稳。</p>
+        <button class="error-primary-button mt-5" type="button" @click="router.push({ name: 'ErrorNotebook' })">返回错题本</button>
       </section>
 
       <template v-else-if="current">
-        <section class="detail-band detail-band-review soft-panel overflow-hidden p-5 text-white">
-          <div class="relative z-10 grid gap-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p class="text-xs font-black uppercase tracking-[0.16em] text-blue-100/80">回忆模式</p>
-                <h2 class="mt-1 text-2xl font-black leading-tight">先自己想，再看答案</h2>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <span class="detail-pill bg-white/18 text-white border-white/14">{{ masteryLabel }}</span>
-                <span class="detail-pill bg-white/18 text-white border-white/14">{{ mistakeStatusLabel }}</span>
-              </div>
-            </div>
+        <section class="error-hero-card">
+          <div class="error-hero-top">
+            <img v-if="imageSrc" :src="imageSrc" class="error-thumb" />
 
-            <div class="rounded-[24px] bg-white/14 p-4 backdrop-blur-sm">
-              <p class="mb-2 text-xs font-black uppercase tracking-[0.14em] text-blue-100/80">当前题目</p>
-              <p class="text-sm leading-6 text-blue-50">
-                {{ revealed ? '已展开答案，读完后直接给自己一个掌握评分。' : '先根据题干和图片在脑中过一遍步骤，再点按钮展开。' }}
-              </p>
+            <div class="error-hero-content">
+              <div class="error-mini-stats">
+                <div class="error-mini-pill">
+                  <Clock3 class="h-4 w-4" />
+                  {{ current.nextReview }}
+                </div>
+                <div class="error-mini-pill">
+                  <Target class="h-4 w-4" />
+                  Lv. {{ current.masteryLevel }}
+                </div>
+              </div>
+
+              <p class="error-question-text">{{ current.questionText || '这道题还没有题干，先根据图片回忆核心条件。' }}</p>
+
+              <div v-if="knowledgePoints.length" class="error-question-tags-row">
+                <div
+                  ref="knowledgeTagsRef"
+                  class="error-question-tags"
+                  :class="{ 'error-question-tags-collapsed': !knowledgeExpanded }"
+                >
+                  <span v-for="point in knowledgePoints" :key="point" class="error-chip">
+                    {{ point }}
+                  </span>
+                </div>
+                <button
+                  v-if="knowledgeOverflowing"
+                  class="error-inline-expand"
+                  type="button"
+                  @click="knowledgeExpanded = !knowledgeExpanded"
+                >
+                  <ChevronDown v-if="!knowledgeExpanded" class="h-4.5 w-4.5" />
+                  <ChevronUp v-else class="h-4.5 w-4.5" />
+                </button>
+              </div>
             </div>
           </div>
         </section>
 
-        <section class="detail-hero soft-panel overflow-hidden p-4">
-          <div class="grid gap-4">
-            <img v-if="imageSrc" :src="imageSrc" class="max-h-80 w-full rounded-[24px] object-contain bg-white/92 shadow-[0_18px_38px_rgba(83,116,191,0.12)]" />
-
-            <div class="detail-surface">
-              <p class="section-kicker">题目理解</p>
-              <h3 class="mt-3 whitespace-pre-wrap text-base font-black leading-7 text-ink">
-                {{ current.questionText || '这道题还没有题干，先根据图片回忆核心条件。' }}
-              </h3>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-              <div class="tiny-card flex items-center gap-3 p-3">
-                <div class="icon-well bg-blue-50 text-blue-500">
-                  <Clock3 class="h-4 w-4" />
-                </div>
-                <div class="min-w-0">
-                  <p class="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">下次复习</p>
-                  <p class="truncate text-sm font-bold text-ink">{{ current.nextReview }}</p>
-                </div>
-              </div>
-              <div class="tiny-card flex items-center gap-3 p-3">
-                <div class="icon-well bg-amber-50 text-amber-500">
-                  <Target class="h-4 w-4" />
-                </div>
-                <div class="min-w-0">
-                  <p class="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">复习强度</p>
-                  <p class="truncate text-sm font-bold text-ink">Lv. {{ current.masteryLevel }} · {{ current.repetitions }} 次</p>
-                </div>
-              </div>
-            </div>
-
-            <button
-              v-if="!revealed"
-              class="blue-gradient flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-bold text-white shadow-[0_18px_28px_rgba(53,100,255,0.22)]"
-              @click="revealed = true"
-            >
-              <RotateCcw class="h-4 w-4" />
-              我想好了，展开答案
+        <section v-if="revealed" class="error-tabs-panel">
+          <div class="error-tabs">
+            <button class="error-tab" :class="{ 'error-tab-active': activeTab === 'answer' }" type="button" @click="activeTab = 'answer'">
+              答案与解析
+            </button>
+            <button class="error-tab" :class="{ 'error-tab-active': activeTab === 'mistake' }" type="button" @click="activeTab = 'mistake'">
+              错因与笔记
             </button>
           </div>
+
+          <div class="error-tab-content">
+            <article class="error-content-card">
+              <template v-if="activeTab === 'answer'">
+                <section class="error-content-section">
+                  <div class="error-card-head">
+                    <Sparkles class="h-5 w-5 text-[#2f7cff]" />
+                    <h2>标准答案</h2>
+                  </div>
+                  <p class="error-content-text">{{ current.answerText || '暂无答案' }}</p>
+                </section>
+
+                <section class="error-content-section error-content-section-divider">
+                  <div class="error-card-head">
+                    <Lightbulb class="h-5 w-5 text-[#2f7cff]" />
+                    <h2>解析</h2>
+                  </div>
+                  <p class="error-content-text">{{ current.analysis || '暂无解析' }}</p>
+                </section>
+              </template>
+
+              <template v-else>
+                <section v-if="current.wrongAnswerText" class="error-content-section">
+                  <div class="error-card-head">
+                    <Brain class="h-5 w-5 text-[#ff786d]" />
+                    <h2>错答记录</h2>
+                  </div>
+                  <p class="error-content-text">{{ current.wrongAnswerText }}</p>
+                </section>
+
+                <section v-if="current.mistakeAnalysis" class="error-content-section" :class="{ 'error-content-section-divider': current.wrongAnswerText }">
+                  <div class="error-card-head">
+                    <Brain class="h-5 w-5 text-[#ff786d]" />
+                    <h2>错因分析</h2>
+                  </div>
+                  <p class="error-content-text">{{ current.mistakeAnalysis }}</p>
+                </section>
+
+                <section v-if="current.userNotes" class="error-content-section" :class="{ 'error-content-section-divider': current.wrongAnswerText || current.mistakeAnalysis }">
+                  <div class="error-card-head">
+                    <NotebookPen class="h-5 w-5 text-[#2f7cff]" />
+                    <h2>笔记</h2>
+                  </div>
+                  <p class="error-content-text">{{ current.userNotes }}</p>
+                </section>
+              </template>
+            </article>
+          </div>
         </section>
-
-        <template v-if="revealed">
-          <section class="soft-panel overflow-hidden p-0">
-            <div class="detail-band detail-band-answer p-4">
-              <div class="flex items-center gap-3">
-                <div class="icon-well bg-white/22 text-white">
-                  <Sparkles class="h-4 w-4" />
-                </div>
-                <div>
-                  <p class="text-xs font-black uppercase tracking-[0.16em] text-white/74">解题路径</p>
-                  <h2 class="text-lg font-black text-white">先对答案，再读思路</h2>
-                </div>
-              </div>
-            </div>
-
-            <div class="grid gap-4 p-4">
-              <div class="detail-surface">
-                <p class="mb-3 text-xs font-black uppercase tracking-[0.14em] text-blue-500">标准答案</p>
-                <p class="whitespace-pre-wrap text-sm leading-6 text-ink">{{ current.answerText || '暂无答案' }}</p>
-              </div>
-
-              <div class="detail-surface">
-                <div class="mb-3 flex items-center gap-2 text-slate-500">
-                  <Lightbulb class="h-4 w-4 text-amber-500" />
-                  <p class="text-xs font-black uppercase tracking-[0.14em]">关键解析</p>
-                </div>
-                <p class="whitespace-pre-wrap text-sm leading-6 text-slate-700">{{ current.analysis || '暂无解析' }}</p>
-              </div>
-            </div>
-          </section>
-
-          <section class="soft-panel overflow-hidden p-0">
-            <div class="detail-band detail-band-mistake p-4">
-              <div class="flex items-center gap-3">
-                <div class="icon-well bg-white/20 text-white">
-                  <Brain class="h-4 w-4" />
-                </div>
-                <div>
-                  <p class="text-xs font-black uppercase tracking-[0.16em] text-white/74">纠错重点</p>
-                  <h2 class="text-lg font-black text-white">把这次容易再错的点记牢</h2>
-                </div>
-              </div>
-            </div>
-
-            <div class="grid gap-4 p-4">
-              <div v-if="current.wrongAnswerText" class="detail-surface">
-                <p class="mb-3 text-xs font-black uppercase tracking-[0.14em] text-rose-500">你当时写成了什么</p>
-                <p class="whitespace-pre-wrap text-sm leading-6 text-ink">{{ current.wrongAnswerText }}</p>
-              </div>
-
-              <div v-if="current.mistakeAnalysis" class="detail-surface">
-                <p class="mb-3 text-xs font-black uppercase tracking-[0.14em] text-rose-500">错因分析</p>
-                <p class="whitespace-pre-wrap text-sm leading-6 text-slate-700">{{ current.mistakeAnalysis }}</p>
-              </div>
-
-              <div v-if="current.userNotes" class="detail-surface">
-                <div class="mb-3 flex items-center gap-2 text-slate-500">
-                  <NotebookPen class="h-4 w-4 text-indigo-500" />
-                  <p class="text-xs font-black uppercase tracking-[0.14em]">我的提醒</p>
-                </div>
-                <p class="whitespace-pre-wrap text-sm leading-6 text-slate-700">{{ current.userNotes }}</p>
-              </div>
-            </div>
-          </section>
-
-          <section v-if="knowledgePoints.length" class="soft-panel p-4">
-            <div class="flex items-center gap-2 text-slate-500">
-              <Tag class="h-4 w-4 text-blue-500" />
-              <p class="text-xs font-black uppercase tracking-[0.14em]">知识点锚点</p>
-            </div>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <span v-for="point in knowledgePoints" :key="point" class="detail-chip">
-                {{ point }}
-              </span>
-            </div>
-          </section>
-
-          <section class="soft-panel p-4">
-            <p class="text-xs font-black uppercase tracking-[0.14em] text-slate-400">这次掌握得怎么样</p>
-            <div class="mt-3 grid grid-cols-3 gap-3">
-              <button class="red-gradient rounded-[22px] px-3 py-4 text-left text-white shadow-[0_16px_24px_rgba(255,95,89,0.2)]" @click="rate(0)">
-                <p class="text-sm font-black">忘了</p>
-                <p class="mt-1 text-[11px] leading-5 text-white/82">基本没想起来</p>
-              </button>
-              <button class="warm-gradient rounded-[22px] px-3 py-4 text-left text-white shadow-[0_16px_24px_rgba(255,179,56,0.22)]" @click="rate(3)">
-                <p class="text-sm font-black">模糊</p>
-                <p class="mt-1 text-[11px] leading-5 text-white/82">能做一半，还不稳</p>
-              </button>
-              <button class="green-gradient rounded-[22px] px-3 py-4 text-left text-white shadow-[0_16px_24px_rgba(78,212,93,0.2)]" @click="rate(5)">
-                <p class="text-sm font-black">掌握</p>
-                <p class="mt-1 text-[11px] leading-5 text-white/82">思路清楚，能独立做</p>
-              </button>
-            </div>
-          </section>
-        </template>
       </template>
     </main>
+
+    <footer v-if="!done && current" class="error-actions" :class="{ 'error-actions-rating': revealed }">
+      <template v-if="!revealed">
+        <button class="error-action error-action-ghost" type="button" @click="router.push({ name: 'ErrorNotebook' })">
+          返回错题本
+        </button>
+        <button class="error-action error-action-primary error-action-wide" type="button" @click="revealed = true">
+          <RotateCcw class="h-5 w-5" />
+          我想好了，展开答案
+        </button>
+      </template>
+
+      <template v-else>
+        <button class="error-score error-score-red" type="button" @click="rate(0)">
+          <span class="error-score-title">忘了</span>
+          <span class="error-score-hint">基本没想起来</span>
+        </button>
+        <button class="error-score error-score-warm" type="button" @click="rate(3)">
+          <span class="error-score-title">模糊</span>
+          <span class="error-score-hint">能做一半，还不稳</span>
+        </button>
+        <button class="error-score error-score-green" type="button" @click="rate(5)">
+          <span class="error-score-title">掌握</span>
+          <span class="error-score-hint">思路清楚，能独立做</span>
+        </button>
+      </template>
+    </footer>
   </div>
 </template>
+
+<style scoped>
+.review-page {
+  background:
+    radial-gradient(circle at top center, rgba(146, 187, 255, 0.18), transparent 28%),
+    linear-gradient(180deg, #fbfdff 0%, #f3f7ff 30%, #edf3ff 100%);
+}
+
+.error-header {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.75rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1.5rem 0;
+}
+
+.error-header-title {
+  margin: 0;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: #18274f;
+}
+
+.error-header-subtitle {
+  margin: 0.2rem 0 0;
+  text-align: center;
+  font-size: 0.76rem;
+  color: #8ea0c6;
+}
+
+.error-header-button {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #23345f;
+}
+
+.error-main {
+  padding: 1.15rem 1.5rem 8.6rem;
+}
+
+.error-hero-card,
+.error-tabs-panel {
+  overflow: hidden;
+  border: 1px solid rgba(214, 227, 255, 0.95);
+  border-radius: 2rem;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.48), transparent 30%),
+    linear-gradient(180deg, #eef5ff 0%, #eaf2ff 100%);
+  box-shadow:
+    0 20px 44px rgba(93, 123, 194, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.error-hero-card {
+  padding: 1.35rem;
+}
+
+.error-hero-top {
+  display: grid;
+  grid-template-columns: 9.4rem minmax(0, 1fr);
+  gap: 1.15rem;
+}
+
+.error-thumb {
+  width: 100%;
+  height: 11.2rem;
+  object-fit: cover;
+  border-radius: 1.15rem;
+  border: 3px solid rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 28px rgba(106, 127, 176, 0.12);
+}
+
+.error-hero-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.error-mini-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+}
+
+.error-mini-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.95rem;
+  padding: 0 0.72rem;
+  border: 1px solid rgba(188, 212, 255, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #5182de;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.error-question-text {
+  margin: 0;
+  color: #18284f;
+  font-size: 1rem;
+  line-height: 1.78;
+  white-space: pre-wrap;
+}
+
+.error-question-tags-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-top: 0.08rem;
+}
+
+.error-question-tags {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.error-question-tags-collapsed {
+  max-height: 1.45rem;
+  overflow: hidden;
+}
+
+.error-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0 0.5rem;
+  border: 1px solid rgba(188, 212, 255, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #5182de;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.error-inline-expand {
+  display: inline-grid;
+  width: 1.45rem;
+  height: 1.45rem;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #4f82df;
+}
+
+.error-tabs-panel {
+  margin-top: 1rem;
+  border-radius: 2rem 2rem 0 0;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.96), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 250, 255, 0.98) 100%);
+  box-shadow:
+    0 18px 42px rgba(97, 126, 190, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.error-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.error-tab {
+  position: relative;
+  min-height: 3.05rem;
+  border: 0;
+  background: linear-gradient(180deg, rgba(249, 251, 255, 0.96) 0%, rgba(243, 247, 255, 0.96) 100%);
+  color: #8f98ab;
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.error-tab:first-child {
+  border-top-left-radius: 2rem;
+}
+
+.error-tab:last-child {
+  border-top-right-radius: 2rem;
+}
+
+.error-tab-active {
+  background: white;
+  color: #2f7cff;
+}
+
+.error-tab-active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0.28rem;
+  width: 2.7rem;
+  height: 0.2rem;
+  border-radius: 999px;
+  background: #2f7cff;
+  transform: translateX(-50%);
+}
+
+.error-tab-content {
+  padding: 0 1.15rem 1rem;
+  margin-top: -0.18rem;
+}
+
+.error-content-card {
+  padding: 1rem 0 0;
+}
+
+.error-content-section + .error-content-section {
+  margin-top: 0.95rem;
+}
+
+.error-content-section-divider {
+  padding-top: 0.95rem;
+  border-top: 1px solid rgba(231, 237, 248, 0.96);
+}
+
+.error-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+
+.error-card-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  color: #1a2b57;
+}
+
+.error-content-text {
+  margin: 0;
+  white-space: pre-wrap;
+  color: #1a2b57;
+  font-size: 0.94rem;
+  line-height: 1.72;
+}
+
+.error-done-card {
+  text-align: center;
+}
+
+.error-done-title {
+  margin: 0;
+  color: #1d2e62;
+  font-size: 1.3rem;
+  font-weight: 900;
+}
+
+.error-done-text {
+  margin: 0.6rem auto 0;
+  max-width: 20rem;
+  color: #6d7ea9;
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+
+.error-primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.2rem;
+  border: 0;
+  border-radius: 1.2rem;
+  background: linear-gradient(135deg, #3883ff 0%, #166fff 100%);
+  color: white;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.error-actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.85rem 1.5rem calc(var(--safe-area-bottom) + 0.95rem);
+  background: linear-gradient(180deg, rgba(244, 248, 255, 0) 0%, rgba(244, 248, 255, 0.94) 24%, rgba(244, 248, 255, 0.98) 100%);
+}
+
+.error-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 3.55rem;
+  border-radius: 1.2rem;
+  border: 0;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.error-action-wide {
+  grid-column: span 2;
+}
+
+.error-action-ghost {
+  border: 1px solid rgba(205, 219, 244, 0.95);
+  background: rgba(255, 255, 255, 0.98);
+  color: #263656;
+}
+
+.error-action-primary {
+  background: linear-gradient(135deg, #3883ff 0%, #166fff 100%);
+  color: white;
+}
+
+.error-score {
+  display: flex;
+  min-height: 4rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  border: 0;
+  border-radius: 1.25rem;
+  padding: 0.8rem 0.95rem;
+  text-align: left;
+  color: white;
+}
+
+.error-score-red {
+  background: linear-gradient(135deg, #ff8f82 0%, #ff6f66 100%);
+}
+
+.error-score-warm {
+  background: linear-gradient(135deg, #ffc951 0%, #ffb338 42%, #ffa01f 100%);
+}
+
+.error-score-green {
+  background: linear-gradient(135deg, #6edd71 0%, #4ed45d 42%, #31c44d 100%);
+}
+
+.error-score-title {
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.error-score-hint {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.84);
+}
+
+@media (min-width: 721px) {
+  .error-actions {
+    grid-template-columns: 1fr 1.4fr;
+  }
+
+  .error-score {
+    min-height: 4.3rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .error-header,
+  .error-main,
+  .error-actions {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .error-main {
+    padding-top: 1rem;
+  }
+
+  .error-hero-top {
+    grid-template-columns: 5.8rem minmax(0, 1fr);
+    gap: 0.95rem;
+  }
+
+  .error-thumb {
+    height: 8.2rem;
+  }
+
+  .error-question-text {
+    font-size: 0.94rem;
+    line-height: 1.68;
+  }
+
+  .error-tab {
+    min-height: 2.9rem;
+    font-size: 0.86rem;
+  }
+
+  .error-tab-content {
+    padding-right: 1rem;
+    padding-bottom: 0.9rem;
+    padding-left: 1rem;
+  }
+
+  .error-actions {
+    grid-template-columns: 1fr 1.25fr;
+  }
+
+  .error-action-wide {
+    grid-column: auto;
+  }
+
+  .error-actions-rating {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .error-score {
+    min-height: 3.8rem;
+    padding: 0.7rem 0.8rem;
+  }
+}
+</style>

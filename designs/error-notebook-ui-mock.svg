@@ -1,0 +1,105 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="0" x2="1120" y2="2688" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7FAFF"/>
+      <stop offset="0.45" stop-color="#EEF4FF"/>
+      <stop offset="1" stop-color="#E8F0FF"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="120" y1="220" x2="1120" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F2F7FF"/>
+    </linearGradient>
+    <linearGradient id="primary" x1="0" y1="0" x2="260" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3E87FF"/>
+      <stop offset="1" stop-color="#1F6EFF"/>
+    </linearGradient>
+    <filter id="shadow" x="70" y="150" width="1102" height="2148" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="28"/>
+      <feGaussianBlur stdDeviation="25"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.27451 0 0 0 0 0.45098 0 0 0 0 0.792157 0 0 0 0.12 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_1" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect width="1242" height="2688" fill="url(#bg)"/>
+
+  <g opacity="0.55">
+    <circle cx="290" cy="168" r="160" fill="#DDEBFF"/>
+    <circle cx="1024" cy="250" r="190" fill="#E9F2FF"/>
+  </g>
+
+  <text x="621" y="118" text-anchor="middle" fill="#1A2B57" font-size="54" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">错题本</text>
+  <text x="621" y="176" text-anchor="middle" fill="#7D91BD" font-size="28" font-family="PingFang SC, Microsoft YaHei, sans-serif">更轻量的总览，更聚焦的题目列表</text>
+
+  <g filter="url(#shadow)">
+    <rect x="90" y="240" width="1062" height="360" rx="42" fill="url(#hero)" stroke="#D7E5FF" stroke-width="2"/>
+    <text x="150" y="330" fill="#4A7BE0" font-size="30" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">今日待复习</text>
+    <text x="150" y="432" fill="#1C2B61" font-size="98" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="800">12</text>
+    <text x="150" y="492" fill="#7388B3" font-size="28" font-family="PingFang SC, Microsoft YaHei, sans-serif">把重点放在题目本身，不让组件抢视线</text>
+
+    <rect x="760" y="304" width="150" height="64" rx="32" fill="#FFFFFF" stroke="#D9E7FF" stroke-width="2"/>
+    <text x="835" y="346" text-anchor="middle" fill="#4B7FDF" font-size="28" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">28 道</text>
+    <rect x="930" y="304" width="150" height="64" rx="32" fill="#FFFFFF" stroke="#D9E7FF" stroke-width="2"/>
+    <text x="1005" y="346" text-anchor="middle" fill="#4B7FDF" font-size="28" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">3 待同步</text>
+
+    <rect x="150" y="520" width="430" height="86" rx="26" fill="url(#primary)"/>
+    <text x="365" y="575" text-anchor="middle" fill="white" font-size="32" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">添加错题</text>
+    <rect x="604" y="520" width="330" height="86" rx="26" fill="#FFFFFF" stroke="#D9E7FF" stroke-width="2"/>
+    <text x="769" y="575" text-anchor="middle" fill="#1D2E62" font-size="32" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">开始复习</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="90" y="650" width="1062" height="1470" rx="42" fill="#FCFDFF" stroke="#D7E5FF" stroke-width="2"/>
+    <text x="150" y="730" fill="#1A2B57" font-size="42" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">最近错题</text>
+    <text x="150" y="776" fill="#8A9CC4" font-size="24" font-family="PingFang SC, Microsoft YaHei, sans-serif">小图预览，题干优先，状态信息只保留最重要的两项</text>
+
+    <g>
+      <rect x="126" y="830" width="990" height="248" rx="30" fill="#FFFFFF" stroke="#E2EBFB" stroke-width="2"/>
+      <rect x="156" y="862" width="124" height="124" rx="24" fill="#E8F0FF"/>
+      <path d="M184 894H252V954H184V894Z" fill="#D0DDF9"/>
+      <text x="316" y="908" fill="#1C2B61" font-size="34" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">已知上坡每小时 1.8 千米、下坡每小时 2.2 千米…</text>
+      <text x="316" y="954" fill="#1C2B61" font-size="34" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">往返 2 小时，求单程路程。</text>
+      <rect x="316" y="994" width="132" height="46" rx="23" fill="#F6FAFF" stroke="#D9E7FF" stroke-width="2"/>
+      <text x="382" y="1024" text-anchor="middle" fill="#4F82DF" font-size="22" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">行程问题</text>
+      <rect x="462" y="994" width="94" height="46" rx="23" fill="#F6FAFF" stroke="#D9E7FF" stroke-width="2"/>
+      <text x="509" y="1024" text-anchor="middle" fill="#4F82DF" font-size="22" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">归一法</text>
+      <text x="316" y="1064" fill="#8A9CC4" font-size="24" font-family="PingFang SC, Microsoft YaHei, sans-serif">下次复习 今天 19:30</text>
+      <rect x="992" y="868" width="88" height="46" rx="23" fill="#EAF2FF"/>
+      <text x="1036" y="898" text-anchor="middle" fill="#2F7CFF" font-size="22" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">L2</text>
+      <text x="992" y="1064" fill="#4B7FDF" font-size="24" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">待分析</text>
+    </g>
+
+    <g>
+      <rect x="126" y="1102" width="990" height="248" rx="30" fill="#FFFFFF" stroke="#E2EBFB" stroke-width="2"/>
+      <rect x="156" y="1134" width="124" height="124" rx="24" fill="#FFF3E7"/>
+      <text x="316" y="1180" fill="#1C2B61" font-size="34" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">为什么这里不能直接套平均速度公式？</text>
+      <text x="316" y="1226" fill="#1C2B61" font-size="34" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">题目条件缺了哪一步判断？</text>
+      <rect x="316" y="1266" width="132" height="46" rx="23" fill="#F6FAFF" stroke="#D9E7FF" stroke-width="2"/>
+      <text x="382" y="1296" text-anchor="middle" fill="#4F82DF" font-size="22" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">平均速度</text>
+      <rect x="462" y="1266" width="110" height="46" rx="23" fill="#F6FAFF" stroke="#D9E7FF" stroke-width="2"/>
+      <text x="517" y="1296" text-anchor="middle" fill="#4F82DF" font-size="22" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">易错点</text>
+      <text x="316" y="1336" fill="#8A9CC4" font-size="24" font-family="PingFang SC, Microsoft YaHei, sans-serif">下次复习 明天 08:00</text>
+      <rect x="992" y="1140" width="88" height="46" rx="23" fill="#EAF2FF"/>
+      <text x="1036" y="1170" text-anchor="middle" fill="#2F7CFF" font-size="22" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">L4</text>
+      <text x="992" y="1336" fill="#4B7FDF" font-size="24" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">已同步</text>
+    </g>
+
+    <g>
+      <rect x="126" y="1374" width="990" height="248" rx="30" fill="#FFFFFF" stroke="#E2EBFB" stroke-width="2"/>
+      <rect x="156" y="1406" width="124" height="124" rx="24" fill="#EEF5FF"/>
+      <text x="316" y="1452" fill="#1C2B61" font-size="34" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">函数单调区间判断里，什么时候要先看定义域？</text>
+      <text x="316" y="1498" fill="#1C2B61" font-size="34" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">这题错在漏掉边界讨论。</text>
+      <rect x="316" y="1538" width="110" height="46" rx="23" fill="#F6FAFF" stroke="#D9E7FF" stroke-width="2"/>
+      <text x="371" y="1568" text-anchor="middle" fill="#4F82DF" font-size="22" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">函数</text>
+      <rect x="440" y="1538" width="132" height="46" rx="23" fill="#F6FAFF" stroke="#D9E7FF" stroke-width="2"/>
+      <text x="506" y="1568" text-anchor="middle" fill="#4F82DF" font-size="22" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">定义域</text>
+      <text x="316" y="1608" fill="#8A9CC4" font-size="24" font-family="PingFang SC, Microsoft YaHei, sans-serif">下次复习 6 月 19 日</text>
+      <rect x="992" y="1412" width="88" height="46" rx="23" fill="#EAF2FF"/>
+      <text x="1036" y="1442" text-anchor="middle" fill="#2F7CFF" font-size="22" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">L1</text>
+      <text x="992" y="1608" fill="#4B7FDF" font-size="24" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">待同步</text>
+    </g>
+  </g>
+</svg>
