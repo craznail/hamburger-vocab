@@ -2,8 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
-import { ArrowRight, BookOpen, Brain, CheckSquare, Flame, GraduationCap, Loader, Play, Plus, Search, Sparkles, Volume2 } from 'lucide-vue-next'
-import NavBar from '../components/NavBar.vue'
+import { ArrowRight, BookOpen, CheckSquare, GraduationCap, Loader, Play, Plus, Search, Sparkles, Volume2 } from 'lucide-vue-next'
 import { speakWord } from '../platform/tts.js'
 import BottomNav from '../components/BottomNav.vue'
 
@@ -19,6 +18,8 @@ const ttsState = ref('idle')
 
 const ttsError = ref('')
 const streakDays = computed(() => store.learningStats?.streakDays || 0)
+const totalCards = computed(() => store.decks.reduce((sum, deck) => sum + getDeckTotal(deck), 0))
+const masteredCards = computed(() => store.decks.reduce((sum, deck) => sum + getDeckMastered(deck), 0))
 const greeting = computed(() => {
   const hour = new Date().getHours()
   if (hour < 6) return '夜深了'
@@ -81,99 +82,70 @@ function getDeckDue(deck) {
 </script>
 
 <template>
-  <div class="app-page flex min-h-screen flex-col">
-    <NavBar :showBack="false">
-      <template #left>
-        <div class="flex min-w-0 items-center gap-3">
-          <div class="brand-mark">
-            <Brain class="h-6 w-6" />
-          </div>
-          <div class="min-w-0">
-            <h1 class="text-[1.65rem] font-black leading-none text-ink">Recall</h1>
-            <p class="mt-1 truncate text-[12px] font-semibold text-slate-400">把任何知识变成长久记忆</p>
-          </div>
+  <div class="app-page home-page flex min-h-screen flex-col">
+    <div class="home-shell">
+      <header class="home-topbar">
+        <div class="min-w-0">
+          <p class="home-greeting">{{ greeting }}</p>
+          <h1 class="home-title">Recall</h1>
+          <p class="home-subtitle">今天先完成最重要的复习</p>
         </div>
-      </template>
-      <template #right>
-        <button class="grid h-10 w-10 place-items-center rounded-full border border-[#d9e5ff] bg-white text-blue-600 shadow-[0_10px_20px_rgba(95,126,194,0.08)]" title="导入" @click="goImport">
+        <button class="home-round-action" title="导入" @click="goImport">
           <Plus class="h-5 w-5" />
         </button>
-      </template>
-    </NavBar>
+      </header>
 
-    <div class="flex-1 px-4 pb-8 pt-4">
-      <div class="mb-4 px-1">
-        <h2 class="text-[2rem] font-black tracking-[-0.03em] text-ink">{{ greeting }}！</h2>
-        <p class="mt-1 text-sm font-medium text-slate-400">愿你今天也有所收获</p>
-      </div>
-
-      <section class="mb-4 grid gap-4">
-        <div class="glass-card relative overflow-hidden px-4 py-4">
-          <div class="grid grid-cols-[minmax(0,1fr)_138px] gap-3">
-            <div class="flex min-w-0 flex-col justify-between">
-              <div>
-                <div class="mb-3 flex items-center gap-2 text-sm font-bold text-[#ff8d46]">
-                  <Flame class="h-4 w-4" />
-                  连续学习
-                </div>
-                <div class="flex items-end gap-2">
-                  <span class="text-5xl font-black leading-none text-ink">{{ streakDays }}</span>
-                  <span class="pb-1 text-base font-bold text-ink-soft">天</span>
-                </div>
-                <p class="mt-2 text-xs leading-5 text-slate-400">{{ streakDays ? `最长连续 ${store.learningStats?.longestStreak || streakDays} 天` : '完成一次复习，开始记录连续学习' }}</p>
-              </div>
-            </div>
-            <div class="study-buddy min-h-[152px]">
-              <div class="buddy-head">
-                <span />
-              </div>
-              <div class="buddy-book" />
-              <div class="absolute right-2 top-2 rounded-full bg-[#ff7e47] px-3 py-1 text-[10px] font-black text-white shadow-lg shadow-orange-300/40">加油呀</div>
-              <Sparkles class="absolute bottom-5 right-4 h-5 w-5 text-amber-300" />
-            </div>
+      <section class="home-focus-card">
+        <div class="home-focus-copy">
+          <div class="home-focus-kicker">
+            <CheckSquare class="h-4 w-4" />
+            今日复习
           </div>
-
-          <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(90,132,255,0.08),transparent_42%)]" />
+          <p class="home-focus-lead">先完成最小一组，后面的学习会轻很多。</p>
+          <div class="home-focus-number-row">
+            <span class="home-focus-number">{{ store.todayCount }}</span>
+            <span class="home-focus-unit">张卡片待复习</span>
+          </div>
+          <p class="home-focus-time">预计 {{ Math.max(1, Math.ceil(store.todayCount / 6)) }} 分钟完成</p>
         </div>
-
-        <div class="home-hero p-5 text-white">
-          <div class="grid grid-cols-[minmax(0,1fr)_110px] gap-4">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 text-sm font-bold text-blue-100">
-                <CheckSquare class="h-4 w-4" />
-                今日待复习
-              </div>
-              <div class="mt-4 flex items-end gap-2">
-                <span class="text-6xl font-black leading-none">{{ store.todayCount }}</span>
-                <span class="pb-2 text-sm font-semibold text-blue-100">张卡片</span>
-              </div>
-              <p class="mt-2 text-sm text-blue-100/90">预计耗时 {{ Math.max(1, Math.ceil(store.todayCount / 6)) }} 分钟</p>
-            </div>
-            <div class="flex items-center justify-center">
-              <div class="relative h-[120px] w-[100px] rounded-[26px] bg-white/18 shadow-[inset_0_1px_0_rgba(255,255,255,0.24)]">
-                <div class="absolute left-1/2 top-5 h-[82px] w-[62px] -translate-x-1/2 rounded-[18px] bg-white/95 shadow-[0_16px_32px_rgba(20,54,170,0.16)]" />
-                <div class="absolute left-1/2 top-10 h-1 w-9 -translate-x-1/2 rounded-full bg-blue-300/70" />
-                <div class="absolute left-1/2 top-[3.4rem] h-1 w-10 -translate-x-1/2 rounded-full bg-blue-200/75" />
-                <div class="absolute left-1/2 top-[4.25rem] h-1 w-8 -translate-x-1/2 rounded-full bg-blue-200/65" />
-                <div class="absolute bottom-5 right-4 h-10 w-10 rounded-2xl bg-white/28" />
-              </div>
-            </div>
+        <div class="home-card-illustration" aria-hidden="true">
+          <div class="home-card-sheet home-card-sheet-back" />
+          <div class="home-card-sheet home-card-sheet-front">
+            <span />
+            <span />
+            <span />
           </div>
-          <button
-            class="primary-action mt-5 w-full text-sm"
-            @click="goStudy()"
-          >
-            {{ store.todayCount === 0 ? '自由复习' : '开始学习' }}
+          <Sparkles class="home-card-sparkle h-5 w-5" />
+        </div>
+        <div class="home-focus-actions">
+          <button class="home-primary-action" @click="goStudy()">
+            {{ store.todayCount === 0 ? '自由练习' : '开始学习' }}
             <ArrowRight class="h-4 w-4" />
+          </button>
+          <button class="home-audio-action" @click="goDictation">
+            <Volume2 class="h-5 w-5" />
           </button>
         </div>
       </section>
 
+      <section class="home-stat-strip">
+        <div>
+          <strong>{{ streakDays }}</strong>
+          <span>连续天数</span>
+        </div>
+        <div>
+          <strong>{{ masteredCards }}</strong>
+          <span>已掌握</span>
+        </div>
+        <div>
+          <strong>{{ totalCards }}</strong>
+          <span>总卡片</span>
+        </div>
+      </section>
+
       <section class="mb-4">
-        <div class="mb-3 flex items-center justify-between px-1">
-          <div>
-            <h2 class="text-base font-black text-ink">我的知识库</h2>
-          </div>
+        <div class="section-title-row">
+          <h2 class="section-title">我的知识库</h2>
           <button
             class="flex items-center gap-1 text-xs font-bold text-slate-400"
             @click="goLibrary"
@@ -183,14 +155,14 @@ function getDeckDue(deck) {
           </button>
         </div>
 
-        <div v-if="store.decks.length > 0" class="soft-panel overflow-hidden px-4 py-3">
+        <div v-if="store.decks.length > 0" class="grid gap-3">
           <button
             v-for="deck in store.sortedDecks.slice(0, 3)"
             :key="deck.id"
-            class="flex w-full items-center gap-3 border-b border-[#edf2ff] py-3 text-left last:border-b-0"
+            class="card-list-row flex w-full items-center gap-3 px-4 py-3 text-left"
             @click="goDeckDetail(deck.id)"
           >
-            <div class="deck-gem grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white">
+            <div class="deck-gem grid h-12 w-12 shrink-0 place-items-center rounded-[18px] bg-gradient-to-br from-blue-500 to-cyan-400 text-white">
               <BookOpen class="h-5 w-5" />
             </div>
             <div class="min-w-0 flex-1">
@@ -209,18 +181,18 @@ function getDeckDue(deck) {
           </button>
         </div>
 
-        <div v-else class="soft-panel p-7 text-center">
+        <div v-else class="home-empty-card p-7 text-center">
           <BookOpen class="mx-auto mb-3 h-12 w-12 text-blue-200" />
           <p class="mb-1 text-sm font-semibold text-slate-500">还没有知识库</p>
           <p class="text-xs muted">导入文本文件后就能开始学习</p>
         </div>
       </section>
 
-      <section class="mb-4">
-        <div class="mb-3 flex items-center justify-between px-1">
+      <section class="home-learning-section mb-4">
+        <div class="section-title-row">
           <div>
-            <h2 class="text-base font-black text-ink">学习方式</h2>
-            <p class="mt-1 text-xs font-medium text-slate-400">按你喜欢的节奏开始</p>
+            <h2 class="section-title">学习方式</h2>
+            <p class="page-copy mt-1 text-xs">按你喜欢的节奏开始</p>
           </div>
         </div>
         <div class="grid grid-cols-2 gap-3">
@@ -251,7 +223,7 @@ function getDeckDue(deck) {
         </div>
       </section>
 
-      <section class="soft-panel p-4">
+      <section class="home-pronounce-card p-4">
         <div class="mb-3 flex items-center gap-2 text-sm font-black text-ink">
           <Volume2 class="h-4 w-4 text-blue-500" />
           快速发音测试

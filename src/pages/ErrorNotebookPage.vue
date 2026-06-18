@@ -21,9 +21,10 @@ import { useErrorNotebookStore } from '../stores/useErrorNotebookStore'
 
 const router = useRouter()
 const notebookStore = useErrorNotebookStore()
-const { items, auth, loading, dueCount, pendingCount, initialized } = storeToRefs(notebookStore)
+const { items, auth, loading, syncError, dueCount, pendingCount, initialized } = storeToRefs(notebookStore)
 const syncMessage = ref('')
 const showLoginForm = ref(false)
+const failedImages = ref(new Set<string>())
 const loginForm = ref({
   serverUrl: localStorage.getItem('wrongNotebookServerUrl') || 'http://localhost:3000',
   email: '',
@@ -31,6 +32,7 @@ const loginForm = ref({
 })
 
 const sortedItems = computed(() => [...items.value].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))))
+const statusMessage = computed(() => syncMessage.value || syncError.value)
 
 onMounted(() => {
   void notebookStore.ensureFresh()
@@ -48,18 +50,23 @@ async function login() {
 async function sync() {
   syncMessage.value = ''
   try {
-    await errorApi.syncErrorItems()
+    await notebookStore.syncRemote()
     syncMessage.value = '同步完成'
     notebookStore.invalidate()
-    await notebookStore.refresh(true)
+    await notebookStore.refresh(true, false)
   } catch (e) {
     syncMessage.value = e instanceof Error ? e.message : String(e)
   }
 }
 
 function getImageSrc(item: errorApi.ErrorItem) {
+  if (failedImages.value.has(item.id)) return ''
   if (item.localImagePath) return convertFileSrc(item.localImagePath)
   return item.remoteImageUrl || ''
+}
+
+function markImageFailed(id: string) {
+  failedImages.value = new Set([...failedImages.value, id])
 }
 
 function getKnowledgePoints(item: errorApi.ErrorItem) {
@@ -150,7 +157,7 @@ function getStatusText(item: errorApi.ErrorItem) {
         </div>
       </section>
 
-      <p v-if="syncMessage" class="error-message">{{ syncMessage }}</p>
+      <p v-if="statusMessage" class="error-message">{{ statusMessage }}</p>
 
       <section class="error-list-panel">
         <div class="error-list-head">
@@ -166,7 +173,7 @@ function getStatusText(item: errorApi.ErrorItem) {
             type="button"
             @click="router.push({ name: 'ErrorDetail', params: { id: item.id } })"
           >
-            <img v-if="getImageSrc(item)" :src="getImageSrc(item)" class="error-list-thumb" />
+            <img v-if="getImageSrc(item)" :src="getImageSrc(item)" class="error-list-thumb" @error="markImageFailed(item.id)" />
             <div v-else class="error-list-thumb error-list-thumb-placeholder">
               <NotebookPen class="h-5 w-5" />
             </div>
@@ -218,9 +225,7 @@ function getStatusText(item: errorApi.ErrorItem) {
 
 <style scoped>
 .notebook-page {
-  background:
-    radial-gradient(circle at top center, rgba(146, 187, 255, 0.18), transparent 28%),
-    linear-gradient(180deg, #fbfdff 0%, #f3f7ff 30%, #edf3ff 100%);
+  background: transparent;
 }
 
 .error-header {
@@ -263,7 +268,7 @@ function getStatusText(item: errorApi.ErrorItem) {
 }
 
 .error-main {
-  padding: 1.05rem 1.5rem 7.5rem;
+  padding: 1.05rem 1rem 7.5rem;
 }
 
 .error-overview-card,
@@ -271,17 +276,19 @@ function getStatusText(item: errorApi.ErrorItem) {
 .error-list-panel {
   overflow: hidden;
   border: 1px solid rgba(214, 227, 255, 0.95);
-  border-radius: 2rem;
+  border-radius: 1.55rem;
   background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.52), transparent 30%),
-    linear-gradient(180deg, #fefeff 0%, #f4f8ff 100%);
+    linear-gradient(rgba(74, 113, 170, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 113, 170, 0.025) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(246, 249, 255, 0.96) 100%);
+  background-size: 18px 18px, 18px 18px, auto;
   box-shadow:
-    0 20px 44px rgba(93, 123, 194, 0.08),
+    0 18px 38px rgba(73, 100, 158, 0.07),
     inset 0 1px 0 rgba(255, 255, 255, 0.98);
 }
 
 .error-overview-card {
-  padding: 1.1rem 1.1rem 1rem;
+  padding: 1.18rem 1.08rem 1rem;
 }
 
 .error-overview-top {
@@ -329,8 +336,8 @@ function getStatusText(item: errorApi.ErrorItem) {
 }
 
 .error-overview-count {
-  color: #1d2e62;
-  font-size: 4rem;
+  color: #152752;
+  font-size: 4.35rem;
   line-height: 0.92;
   font-weight: 900;
 }
@@ -392,7 +399,7 @@ function getStatusText(item: errorApi.ErrorItem) {
 
 .error-primary-button,
 .error-submit-button {
-  background: linear-gradient(135deg, #3e87ff 0%, #1f6eff 100%);
+  background: linear-gradient(135deg, #4a80ff 0%, #245dff 100%);
   color: white;
   box-shadow: 0 14px 26px rgba(31, 110, 255, 0.24);
 }
@@ -477,7 +484,7 @@ function getStatusText(item: errorApi.ErrorItem) {
 
 .error-list-panel {
   margin-top: 1rem;
-  padding: 1.05rem 1.05rem 0.95rem;
+  padding: 1rem 0.85rem 0.9rem;
 }
 
 .error-list-head {
@@ -500,7 +507,7 @@ function getStatusText(item: errorApi.ErrorItem) {
   gap: 0.62rem;
   width: 100%;
   border: 1px solid rgba(224, 232, 248, 0.95);
-  border-radius: 1.28rem;
+  border-radius: 1.18rem;
   background: rgba(255, 255, 255, 0.92);
   padding: 0.68rem;
   text-align: left;
@@ -516,13 +523,17 @@ function getStatusText(item: errorApi.ErrorItem) {
   height: 2.95rem;
   place-items: center;
   object-fit: cover;
-  border-radius: 0.82rem;
+  border-radius: 0.78rem;
   border: 2px solid rgba(255, 255, 255, 0.96);
   box-shadow: 0 8px 18px rgba(106, 127, 176, 0.1);
 }
 
 .error-list-thumb-placeholder {
-  background: linear-gradient(180deg, #eef4ff 0%, #e4eeff 100%);
+  background:
+    linear-gradient(rgba(80, 105, 150, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 105, 150, 0.06) 1px, transparent 1px),
+    linear-gradient(180deg, #f6f8fb 0%, #e9eef8 100%);
+  background-size: 8px 8px, 8px 8px, auto;
   color: #8aa5d9;
 }
 

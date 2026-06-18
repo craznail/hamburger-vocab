@@ -42,13 +42,14 @@ function speak(event) {
     @keydown.space.prevent="toggleReveal"
     tabindex="0"
   >
-      <div class="soft-panel relative flex min-h-[380px] flex-1 flex-col justify-center overflow-hidden rounded-[32px] px-6 py-9 text-center">
-        <div class="absolute bottom-[-2.5rem] right-[-1.2rem] h-40 w-40 rounded-[2.6rem] bg-blue-50/90 rotate-12" />
-        <div class="absolute bottom-10 right-10 h-20 w-20 rounded-[1.75rem] border border-blue-100 bg-white/72" />
-        <span class="mx-auto mb-7 rounded-xl bg-[#eff3ff] px-3 py-1.5 text-xs font-black text-blue-600">问题</span>
+      <div class="soft-panel relative flex min-h-[390px] flex-1 flex-col justify-center overflow-hidden rounded-[28px] px-6 py-9 text-center">
+        <div class="absolute bottom-[-2.4rem] right-[-1.1rem] h-40 w-40 rotate-12 rounded-[2.4rem] bg-[#eaf1ff]/95" />
+        <div class="absolute bottom-10 right-10 h-20 w-20 rounded-[1.65rem] border border-blue-100 bg-white/74" />
+        <div class="absolute left-6 top-6 h-10 w-10 rounded-2xl border border-blue-100 bg-white/70" />
+        <span class="mx-auto mb-7 rounded-xl bg-[#eff3ff] px-3 py-1.5 text-xs font-black text-blue-600">{{ practiceMode ? '自由练习' : '今日学习' }}</span>
 
         <div class="relative mb-4 flex items-center justify-center gap-2">
-          <h2 class="max-w-[260px] text-[2rem] font-black leading-snug tracking-[-0.03em] text-ink">{{ card.word }}</h2>
+          <h2 class="max-w-[260px] text-[2.15rem] font-black leading-snug text-ink">{{ card.word }}</h2>
           <button
             class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-500 transition-colors hover:bg-blue-100"
             @click="speak"
@@ -61,7 +62,7 @@ function speak(event) {
           </button>
         </div>
 
-        <p v-if="!revealed" class="relative text-xs font-medium text-slate-400">点击卡片查看答案</p>
+        <p v-if="!revealed" class="relative text-sm font-semibold text-slate-400">点击卡片查看答案</p>
         <p v-if="ttsState === 'unavailable'" class="relative mt-2 text-xs text-slate-400">发音不可用，请检查网络或 TTS 设置</p>
 
         <transition name="reveal">
@@ -80,33 +81,33 @@ function speak(event) {
         </transition>
       </div>
 
-      <div class="grid grid-cols-3 gap-4 pt-6" @click.stop>
+      <div class="grid grid-cols-3 gap-3 pt-5" @click.stop>
         <button
-          class="red-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-red-200/60 disabled:grayscale disabled:opacity-45"
+          class="flex min-h-[86px] flex-col items-center justify-center gap-1 rounded-[22px] border border-red-100 bg-white text-[#ef665d] shadow-[0_12px_24px_rgba(120,68,68,0.06)] disabled:grayscale disabled:opacity-45"
           :disabled="!revealed"
           @click="emit('rate', 0)"
         >
           <Heart class="h-6 w-6" />
           <span class="text-sm font-black">忘记</span>
-          <span class="text-[10px] text-white/75">{{ practiceMode ? '仅记录练习' : `${intervals.forgot} 天后复习` }}</span>
+          <span class="text-[10px] text-slate-400">{{ practiceMode ? '仅记录练习' : `${intervals.forgot} 天后复习` }}</span>
         </button>
         <button
-          class="warm-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-amber-200/60 disabled:grayscale disabled:opacity-45"
+          class="flex min-h-[86px] flex-col items-center justify-center gap-1 rounded-[22px] border border-amber-100 bg-white text-[#d99428] shadow-[0_12px_24px_rgba(112,88,44,0.06)] disabled:grayscale disabled:opacity-45"
           :disabled="!revealed"
           @click="emit('rate', 3)"
         >
           <Star class="h-6 w-6" />
           <span class="text-sm font-black">模糊</span>
-          <span class="text-[10px] text-white/75">{{ practiceMode ? '仅记录练习' : `${intervals.hazy} 天后复习` }}</span>
+          <span class="text-[10px] text-slate-400">{{ practiceMode ? '仅记录练习' : `${intervals.hazy} 天后复习` }}</span>
         </button>
         <button
-          class="green-gradient flex min-h-[92px] flex-col items-center justify-center gap-1 rounded-[24px] text-white shadow-lg shadow-green-200/60 disabled:grayscale disabled:opacity-45"
+          class="flex min-h-[86px] flex-col items-center justify-center gap-1 rounded-[22px] bg-[#e8f8f4] text-[#249b82] shadow-[0_12px_24px_rgba(42,138,117,0.08)] disabled:grayscale disabled:opacity-45"
           :disabled="!revealed"
           @click="emit('rate', 5)"
         >
           <Trees class="h-6 w-6" />
           <span class="text-sm font-black">已掌握</span>
-          <span class="text-[10px] text-white/75">{{ practiceMode ? '仅记录练习' : `${intervals.mastered} 天后复习` }}</span>
+          <span class="text-[10px] text-[#5aa998]">{{ practiceMode ? '仅记录练习' : `${intervals.mastered} 天后复习` }}</span>
         </button>
       </div>
     </div>

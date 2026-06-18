@@ -15,11 +15,11 @@ onMounted(() => {
 
 const deckIcons = [Box, Languages, Code2, Globe2, BookOpen]
 const deckColors = [
-  'from-red-500 to-orange-400',
-  'from-emerald-500 to-green-400',
   'from-blue-500 to-cyan-400',
-  'from-purple-500 to-fuchsia-400',
-  'from-amber-500 to-yellow-400'
+  'from-emerald-500 to-teal-400',
+  'from-amber-500 to-yellow-400',
+  'from-sky-500 to-blue-400',
+  'from-rose-400 to-orange-300'
 ]
 
 const totals = computed(() => {
@@ -58,6 +58,7 @@ function openDeck(deckId) {
       <template #left>
         <div>
           <h1 class="page-header-title text-[1.9rem]">我的知识库</h1>
+          <p class="page-subtitle mt-1">把词库整理成可复习的路径</p>
         </div>
       </template>
       <template #right>
@@ -72,30 +73,48 @@ function openDeck(deckId) {
       </template>
     </NavBar>
 
-    <main class="flex-1 px-4 pb-8 pt-4">
-      <section class="grid grid-cols-3 gap-3">
-        <div class="stat-grid-card p-4 text-center">
-          <div class="text-2xl font-black text-blue-600">{{ totals.decks }}</div>
-          <div class="mt-1 text-[11px] font-medium text-slate-400">知识库总数</div>
+    <main class="page-shell">
+      <section class="glass-card mb-4 overflow-hidden p-5">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="section-kicker">知识库总数</p>
+            <div class="mt-3 flex items-end gap-2">
+              <span class="text-6xl font-black leading-none text-ink">{{ totals.decks }}</span>
+              <span class="pb-2 text-sm font-bold text-slate-400">个集合</span>
+            </div>
+          </div>
+          <div class="grid gap-2 text-right">
+            <span class="rounded-full bg-[#e9f8f4] px-3 py-1.5 text-xs font-black text-[#2fa88f]">掌握 {{ totals.rate }}%</span>
+            <span class="rounded-full bg-[#fff6df] px-3 py-1.5 text-xs font-black text-[#d58b22]">{{ totals.totalCards.toLocaleString() }} 卡片</span>
+          </div>
         </div>
-        <div class="stat-grid-card p-4 text-center">
-          <div class="text-2xl font-black text-ink">{{ totals.totalCards.toLocaleString() }}</div>
-          <div class="mt-1 text-[11px] font-medium text-slate-400">总卡片数</div>
+        <div class="mt-5 flex gap-2">
+          <div class="input-soft flex h-12 flex-1 items-center gap-2 px-3 text-sm font-semibold text-slate-400">
+            <Search class="h-4 w-4" />
+            搜索词库或单词
+          </div>
+          <button class="secondary-action h-12 w-12 p-0" @click="router.push({ name: 'Import' })">
+            <Plus class="h-5 w-5" />
+          </button>
         </div>
-        <div class="stat-grid-card p-4 text-center">
-          <div class="text-2xl font-black text-ink">{{ totals.rate }}%</div>
-          <div class="mt-1 text-[11px] font-medium text-slate-400">平均掌握率</div>
+        <div class="mt-3 grid grid-cols-3 gap-2 rounded-[18px] border border-blue-100/80 bg-[#f3f7ff] p-1">
+          <button class="rounded-[14px] bg-white py-2 text-xs font-black text-blue-600 shadow-sm">全部</button>
+          <button class="py-2 text-xs font-black text-slate-400">学习中</button>
+          <button class="py-2 text-xs font-black text-slate-400">已掌握</button>
         </div>
       </section>
 
       <section class="mt-5 space-y-3">
+        <div class="section-title-row">
+          <h2 class="section-title">词库列表</h2>
+        </div>
         <button
           v-for="(deck, index) in store.sortedDecks"
           :key="deck.id"
-          class="card-list-row flex w-full items-center gap-3 px-4 py-3 text-left active:scale-[0.99]"
+          class="card-list-row flex w-full items-center gap-3 px-4 py-3.5 text-left active:scale-[0.99]"
           @click="openDeck(deck.id)"
         >
-          <span class="deck-gem flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg shadow-blue-100" :class="deckColors[index % deckColors.length]">
+          <span class="deck-gem flex h-[3.25rem] w-[3.25rem] shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br text-white shadow-lg shadow-blue-100" :class="deckColors[index % deckColors.length]">
             <component :is="deckIcons[index % deckIcons.length]" class="h-6 w-6" />
           </span>
           <span class="min-w-0 flex-1">

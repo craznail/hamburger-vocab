@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
-import { BarChart3, CheckCircle } from 'lucide-vue-next'
+import { BarChart3, CheckCircle, Settings2 } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
 import FlashCard from '../components/FlashCard.vue'
 import BottomNav from '../components/BottomNav.vue'
@@ -115,25 +115,37 @@ async function continueStudy() {
   <div class="app-page flex min-h-screen flex-col">
     <NavBar @back="goHome">
       <template #left>
-        <div v-if="!sessionDone">
-          <h1 class="text-sm font-black text-ink">{{ route.query.deckName || (isPractice ? '自由练习' : '今日复习') }}</h1>
-          <p class="mt-1 text-xs text-slate-400">{{ progress.current }} / {{ progress.total }}</p>
+        <div>
+          <h1 class="text-base font-black text-ink">{{ route.query.deckName || (isPractice ? '自由练习' : '今日学习') }}</h1>
+          <p class="page-subtitle mt-1">先完成最小一组，保持节奏</p>
         </div>
+      </template>
+      <template #right>
+        <button v-if="!sessionDone" class="ghost-button h-10 w-10 p-0" title="复习计划">
+          <Settings2 class="h-4.5 w-4.5" />
+        </button>
       </template>
     </NavBar>
 
-    <div v-if="!sessionDone && progress.total > 0" class="px-4 pt-2">
-      <div class="progress-track h-1.5">
-        <div class="progress-fill" :style="{ width: `${Math.round((progress.current / progress.total) * 100)}%` }" />
+    <div v-if="!sessionDone && progress.total > 0" class="px-4 pt-3">
+      <div class="glass-card px-4 py-3">
+        <div class="mb-2 flex items-center justify-between text-xs font-black">
+          <span class="text-slate-500">第 {{ progress.current }} / {{ progress.total }} 张</span>
+          <span class="text-blue-500">预计 {{ Math.max(1, Math.ceil(progress.total / 6)) }} 分钟</span>
+        </div>
+        <div class="progress-track h-1.5">
+          <div class="progress-fill" :style="{ width: `${Math.round((progress.current / progress.total) * 100)}%` }" />
+        </div>
       </div>
     </div>
 
     <div class="flex flex-1 flex-col px-4 pt-5">
-      <div v-if="sessionDone" class="flex flex-1 items-center justify-center text-center">
-        <div v-if="cards.length === 0" class="soft-panel w-full p-8">
-          <CheckCircle class="mx-auto mb-4 h-16 w-16 text-green-400" />
-          <h2 class="mb-2 text-xl font-black text-ink">暂无可练习卡片</h2>
-          <p class="mb-6 text-sm text-slate-400">当前范围内还没有卡片</p>
+      <div v-if="sessionDone" class="flex flex-1 flex-col justify-start text-center">
+        <div v-if="cards.length === 0" class="soft-panel relative mt-4 w-full overflow-hidden p-8">
+          <div class="absolute right-[-2rem] top-[-2rem] h-28 w-28 rounded-[2rem] bg-blue-50 rotate-12" />
+          <CheckCircle class="relative mx-auto mb-4 h-16 w-16 text-[#2fcfa6]" />
+          <h2 class="relative mb-2 text-xl font-black text-ink">暂无可练习卡片</h2>
+          <p class="relative mb-6 text-sm text-slate-400">当前范围内还没有卡片，可以先导入知识库或回到首页自由浏览。</p>
           <button
             class="blue-gradient h-11 rounded-xl px-6 text-sm font-bold text-white"
             @click="goHome"

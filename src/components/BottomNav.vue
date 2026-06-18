@@ -33,17 +33,17 @@ function isActive(item) {
 </script>
 
 <template>
-  <nav class="app-bottom-nav fixed inset-x-0 bottom-0 z-40 pt-2">
-    <div class="mx-auto grid max-w-2xl grid-cols-6 gap-1 rounded-[28px] border border-white/70 bg-white/88 px-2 py-2 shadow-[0_-14px_34px_rgba(80,107,173,0.08)] backdrop-blur-2xl">
+  <nav class="app-bottom-nav fixed inset-x-0 bottom-0 z-40">
+    <div class="mobile-tabbar grid grid-cols-6 gap-1">
       <button
         v-for="item in items"
         :key="item.label"
-        class="relative flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-[11px] font-semibold transition-colors"
-        :class="isActive(item) ? 'bg-[#f1f5ff] text-blue-600' : 'text-slate-400 hover:text-slate-600'"
+        class="mobile-tab-item"
+        :class="{ 'mobile-tab-item-active': isActive(item) }"
         @click="go(item)"
       >
         <span
-          class="absolute top-1 h-1 w-6 rounded-full bg-blue-600 transition-opacity"
+          class="mobile-tab-indicator"
           :class="isActive(item) ? 'opacity-100' : 'opacity-0'"
         />
         <component

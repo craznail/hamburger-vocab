@@ -11,14 +11,37 @@ export const useErrorNotebookStore = defineStore('errorNotebook', () => {
   const auth = ref<authApi.AuthStatus>({ loggedIn: false })
   const initialized = ref(false)
   const loading = ref(false)
+  const syncError = ref('')
   const lastLoadedAt = ref(0)
   let inflightLoad: Promise<void> | null = null
+  let inflightSync: Promise<void> | null = null
 
   const dueCount = computed(() => notebooks.value.reduce((sum, notebook) => sum + (notebook.dueCount || 0), 0))
   const pendingCount = computed(() => items.value.filter(item => item.syncStatus !== 'synced').length)
   const hasData = computed(() => notebooks.value.length > 0 || items.value.length > 0 || initialized.value)
 
-  async function refresh(force = false): Promise<void> {
+  async function syncRemote(): Promise<void> {
+    if (inflightSync) {
+      return inflightSync
+    }
+
+    const request = (async () => {
+      try {
+        await errorApi.syncErrorItems()
+        syncError.value = ''
+      } catch (e) {
+        syncError.value = e instanceof Error ? e.message : String(e)
+        throw e
+      } finally {
+        inflightSync = null
+      }
+    })()
+
+    inflightSync = request
+    return request
+  }
+
+  async function refresh(force = false, pullRemote = true): Promise<void> {
     if (inflightLoad && !force) {
       return inflightLoad
     }
@@ -31,12 +54,21 @@ export const useErrorNotebookStore = defineStore('errorNotebook', () => {
     loading.value = true
     const request = (async () => {
       try {
-        const [nextAuth, nextNotebooks, nextItems] = await Promise.all([
-          authApi.getAuthStatus(),
+        const nextAuth = await authApi.getAuthStatus()
+        auth.value = nextAuth
+
+        if (pullRemote && nextAuth.loggedIn) {
+          try {
+            await syncRemote()
+          } catch {
+            // Keep showing the local cache even if the remote endpoint is temporarily unavailable.
+          }
+        }
+
+        const [nextNotebooks, nextItems] = await Promise.all([
           errorApi.getErrorNotebooks(),
           errorApi.getErrorItems(),
         ])
-        auth.value = nextAuth
         notebooks.value = nextNotebooks
         items.value = nextItems
         lastLoadedAt.value = Date.now()
@@ -70,6 +102,7 @@ export const useErrorNotebookStore = defineStore('errorNotebook', () => {
     auth,
     initialized,
     loading,
+    syncError,
     dueCount,
     pendingCount,
     hasData,
@@ -77,5 +110,6 @@ export const useErrorNotebookStore = defineStore('errorNotebook', () => {
     ensureFresh,
     invalidate,
     prime,
+    syncRemote,
   }
 })
