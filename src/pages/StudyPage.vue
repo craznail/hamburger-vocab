@@ -19,6 +19,7 @@ const cardStartedAt = ref(Date.now())
 const mode = ref('review')
 
 const deckId = computed(() => route.query.deckId || null)
+const forcePractice = computed(() => route.query.mode === 'practice')
 const currentCard = computed(() => cards.value[currentIndex.value] || null)
 const isPractice = computed(() => mode.value === 'practice')
 const progress = computed(() => ({
@@ -46,7 +47,7 @@ function shuffle(array) {
 }
 
 onMounted(async () => {
-  await loadCards()
+  await loadCards({ forcePractice: forcePractice.value })
 })
 
 async function loadCards({ forcePractice = false } = {}) {

@@ -1,48 +1,44 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/useAppStore'
-import { ArrowRight, BookOpen, CheckSquare, GraduationCap, Loader, Play, Plus, Search, Sparkles, Volume2 } from 'lucide-vue-next'
-import { speakWord } from '../platform/tts.js'
+import { useErrorNotebookStore } from '../stores/useErrorNotebookStore'
+import {
+  BookOpen,
+  CalendarDays,
+  CheckSquare,
+  ChevronRight,
+  CirclePlay,
+  Dices,
+  Flame,
+  GraduationCap,
+  Headphones,
+  NotebookPen,
+} from 'lucide-vue-next'
 import BottomNav from '../components/BottomNav.vue'
 
 const router = useRouter()
 const store = useAppStore()
+const errorStore = useErrorNotebookStore()
 
 onMounted(() => {
   store.refreshAll()
+  void errorStore.ensureFresh()
 })
 
-const ttsWord = ref('')
-const ttsState = ref('idle')
-
-const ttsError = ref('')
 const streakDays = computed(() => store.learningStats?.streakDays || 0)
-const totalCards = computed(() => store.decks.reduce((sum, deck) => sum + getDeckTotal(deck), 0))
 const masteredCards = computed(() => store.decks.reduce((sum, deck) => sum + getDeckMastered(deck), 0))
-const greeting = computed(() => {
-  const hour = new Date().getHours()
-  if (hour < 6) return '夜深了'
-  if (hour < 12) return '早上好'
-  if (hour < 18) return '下午好'
-  return '晚上好'
-})
+const dueMistakes = computed(() => errorStore.dueCount || 0)
+const topDecks = computed(() => store.sortedDecks.slice(0, 2))
 
-function testTTS() {
-  const word = ttsWord.value.trim()
-  if (!word) return
-  ttsError.value = ''
-  ttsState.value = 'loading'
-  speakWord(word, {
-    onStateChange: state => { ttsState.value = state }
-  }).catch((err) => {
-    ttsState.value = 'unavailable'
-    ttsError.value = err?.message || String(err)
+function goStudy({ deckId = undefined, practice = false } = {}) {
+  router.push({
+    name: 'Study',
+    query: {
+      ...(deckId ? { deckId } : {}),
+      ...(practice ? { mode: 'practice' } : {}),
+    },
   })
-}
-
-function goStudy(deckId) {
-  router.push({ name: 'Study', query: { deckId } })
 }
 
 function goDictation() {
@@ -53,12 +49,12 @@ function goDeckDetail(deckId) {
   router.push({ name: 'DeckDetail', params: { id: deckId } })
 }
 
-function goImport() {
-  router.push({ name: 'Import' })
-}
-
 function goLibrary() {
   router.push({ name: 'Library' })
+}
+
+function goCalendar() {
+  router.push({ name: 'Stats' })
 }
 
 function getTotalMasteredRatio(deck) {
@@ -86,92 +82,112 @@ function getDeckDue(deck) {
     <div class="home-shell">
       <header class="home-topbar">
         <div class="min-w-0">
-          <p class="home-greeting">{{ greeting }}</p>
           <h1 class="home-title">Recall</h1>
           <p class="home-subtitle">今天先完成最重要的复习</p>
         </div>
-        <button class="home-round-action" title="导入" @click="goImport">
-          <Plus class="h-5 w-5" />
+        <button class="home-calendar-action" title="复习日历" @click="goCalendar">
+          <CalendarDays class="h-4.5 w-4.5" />
+          <span>复习日历</span>
         </button>
       </header>
 
-      <section class="home-focus-card">
-        <div class="home-focus-copy">
-          <div class="home-focus-kicker">
-            <CheckSquare class="h-4 w-4" />
-            今日复习
+      <section class="home-focus-card mb-2">
+        <div class="home-focus-hero">
+          <div class="home-focus-copy">
+            <div class="home-focus-kicker">
+              <CheckSquare class="h-4 w-4" />
+              今日复习
+            </div>
+            <div class="home-focus-number-row">
+              <span class="home-focus-number">{{ store.todayCount }}</span>
+            </div>
+            <p class="home-focus-unit">张卡片待复习</p>
           </div>
-          <p class="home-focus-lead">先完成最小一组，后面的学习会轻很多。</p>
-          <div class="home-focus-number-row">
-            <span class="home-focus-number">{{ store.todayCount }}</span>
-            <span class="home-focus-unit">张卡片待复习</span>
+          <div class="home-card-illustration" aria-hidden="true">
+            <div class="home-card-grid" />
+            <div class="home-card-stack home-card-stack-back" />
+            <div class="home-card-stack home-card-stack-mid" />
+            <div class="home-card-stack home-card-stack-front">
+              <strong>abandon</strong>
+              <span />
+              <span />
+              <span />
+            </div>
+            <div class="home-card-ring" />
+            <div class="home-card-pencil" />
           </div>
-          <p class="home-focus-time">预计 {{ Math.max(1, Math.ceil(store.todayCount / 6)) }} 分钟完成</p>
         </div>
-        <div class="home-card-illustration" aria-hidden="true">
-          <div class="home-card-sheet home-card-sheet-back" />
-          <div class="home-card-sheet home-card-sheet-front">
-            <span />
-            <span />
-            <span />
-          </div>
-          <Sparkles class="home-card-sparkle h-5 w-5" />
-        </div>
+
         <div class="home-focus-actions">
           <button class="home-primary-action" @click="goStudy()">
+            <CirclePlay class="h-5 w-5" />
             {{ store.todayCount === 0 ? '自由练习' : '开始学习' }}
-            <ArrowRight class="h-4 w-4" />
           </button>
-          <button class="home-audio-action" @click="goDictation">
-            <Volume2 class="h-5 w-5" />
+          <button class="home-secondary-action" @click="goStudy({ practice: true })">
+            <Dices class="h-5 w-5" />
+            自由练习
           </button>
+        </div>
+
+        <div class="home-stat-strip">
+          <div class="home-stat-item">
+            <Flame class="h-6 w-6 text-emerald-500" />
+            <div>
+              <strong>{{ streakDays }}</strong>
+              <span>坚持学习</span>
+            </div>
+          </div>
+          <div class="home-stat-item">
+            <GraduationCap class="h-6 w-6 text-blue-500" />
+            <div>
+              <strong>{{ masteredCards }}</strong>
+              <span>熟悉单词</span>
+            </div>
+          </div>
+          <div class="home-stat-item">
+            <NotebookPen class="h-6 w-6 text-amber-500" />
+            <div>
+              <strong>{{ dueMistakes }}</strong>
+              <span>待巩固</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section class="home-stat-strip">
-        <div>
-          <strong>{{ streakDays }}</strong>
-          <span>连续天数</span>
-        </div>
-        <div>
-          <strong>{{ masteredCards }}</strong>
-          <span>已掌握</span>
-        </div>
-        <div>
-          <strong>{{ totalCards }}</strong>
-          <span>总卡片</span>
-        </div>
-      </section>
-
-      <section class="mb-4">
+      <section class="home-section-card mb-2">
         <div class="section-title-row">
           <h2 class="section-title">我的知识库</h2>
-          <button
-            class="flex items-center gap-1 text-xs font-bold text-slate-400"
-            @click="goLibrary"
-          >
-            查看全部
-            <ArrowRight class="h-3.5 w-3.5" />
+          <button class="home-inline-link" @click="goLibrary">
+            全部知识库
+            <ChevronRight class="h-4 w-4" />
           </button>
         </div>
 
-        <div v-if="store.decks.length > 0" class="grid gap-3">
+        <div v-if="store.decks.length > 0" class="home-library-list">
           <button
-            v-for="deck in store.sortedDecks.slice(0, 3)"
+            v-for="(deck, index) in topDecks"
             :key="deck.id"
-            class="card-list-row flex w-full items-center gap-3 px-4 py-3 text-left"
+            class="home-library-row"
             @click="goDeckDetail(deck.id)"
           >
-            <div class="deck-gem grid h-12 w-12 shrink-0 place-items-center rounded-[18px] bg-gradient-to-br from-blue-500 to-cyan-400 text-white">
+            <div
+              class="home-library-icon"
+              :class="index === 0 ? 'home-library-icon-blue' : 'home-library-icon-green'"
+            >
               <BookOpen class="h-5 w-5" />
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex items-center justify-between gap-3">
-                <h3 class="truncate text-sm font-black text-ink">{{ deck.name }}</h3>
-                <span class="text-xs font-bold text-slate-400">{{ getTotalMasteredRatio(deck) }}%</span>
+                <div class="min-w-0 flex-1">
+                  <h3 class="truncate text-[1.02rem] font-black text-ink">{{ deck.name }}</h3>
+                  <p class="mt-1 text-sm font-medium text-slate-400">已掌握 {{ getDeckMastered(deck) }} / {{ getDeckTotal(deck) }}</p>
+                </div>
+                <div class="home-library-meta">
+                  <span class="home-library-percent">{{ getTotalMasteredRatio(deck) }}%</span>
+                  <ChevronRight class="h-4 w-4" />
+                </div>
               </div>
-              <p class="mt-1 text-xs font-medium text-slate-400">{{ getDeckMastered(deck) }} / {{ getDeckTotal(deck) }}</p>
-              <div class="mt-2 flex items-center gap-3">
+              <div class="mt-3 flex items-center gap-3">
                 <div class="progress-track h-1.5 flex-1">
                   <div class="progress-fill transition-all" :style="{ width: `${getTotalMasteredRatio(deck)}%` }" />
                 </div>
@@ -188,70 +204,39 @@ function getDeckDue(deck) {
         </div>
       </section>
 
-      <section class="home-learning-section mb-4">
+      <section class="home-section-card mb-2">
         <div class="section-title-row">
-          <div>
-            <h2 class="section-title">学习方式</h2>
-            <p class="page-copy mt-1 text-xs">按你喜欢的节奏开始</p>
-          </div>
+          <h2 class="section-title">学习方式</h2>
         </div>
-        <div class="grid grid-cols-2 gap-3">
+
+        <div class="grid gap-3">
           <button
-            class="soft-panel action-tile flex items-center gap-3 p-4 text-left"
+            class="home-method-row"
+            @click="goStudy({ practice: true })"
+          >
+            <span class="home-method-icon home-method-icon-blue">
+              <Dices class="h-5 w-5" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-[1.02rem] font-black text-ink">闪卡学习</span>
+              <span class="mt-1 block text-sm muted">科学记忆，高效复习</span>
+            </span>
+            <ChevronRight class="h-5 w-5 text-slate-300" />
+          </button>
+          <button
+            class="home-method-row"
             @click="goDictation"
           >
-            <span class="icon-well bg-blue-50 text-blue-600">
-              <Volume2 class="h-5 w-5" />
+            <span class="home-method-icon home-method-icon-green">
+              <Headphones class="h-5 w-5" />
             </span>
-            <span class="min-w-0">
-              <span class="block text-sm font-black text-ink">听写模式</span>
-              <span class="mt-1 block text-xs muted">边听边写</span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-[1.02rem] font-black text-ink">听写训练</span>
+              <span class="mt-1 block text-sm muted">听音辨词，强化拼写</span>
             </span>
-          </button>
-          <button
-            class="soft-panel action-tile flex items-center gap-3 p-4 text-left"
-            @click="goStudy()"
-          >
-            <span class="icon-well bg-emerald-50 text-emerald-600">
-              <GraduationCap class="h-5 w-5" />
-            </span>
-            <span class="min-w-0">
-              <span class="block text-sm font-black text-ink">闪卡学习</span>
-              <span class="mt-1 block text-xs muted">智能复习</span>
-            </span>
+            <ChevronRight class="h-5 w-5 text-slate-300" />
           </button>
         </div>
-      </section>
-
-      <section class="home-pronounce-card p-4">
-        <div class="mb-3 flex items-center gap-2 text-sm font-black text-ink">
-          <Volume2 class="h-4 w-4 text-blue-500" />
-          快速发音测试
-        </div>
-        <div class="flex gap-2">
-          <div class="relative flex-1">
-            <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-300" />
-            <input
-              v-model="ttsWord"
-              type="text"
-              placeholder="输入单词"
-              class="input-soft h-12 w-full pl-9 pr-3 text-sm text-ink outline-none focus:border-blue-300 focus:bg-white"
-              @keyup.enter="testTTS"
-            />
-          </div>
-          <button
-            class="blue-gradient flex h-12 w-12 items-center justify-center rounded-[18px] text-white shadow-[0_12px_22px_rgba(53,100,255,0.22)] disabled:opacity-50"
-            :disabled="ttsState === 'loading' || !ttsWord.trim()"
-            @click="testTTS"
-            title="播放发音"
-          >
-            <Loader v-if="ttsState === 'loading'" class="h-4 w-4 animate-spin" />
-            <Play v-else class="h-4 w-4" />
-          </button>
-        </div>
-        <p v-if="ttsState === 'unavailable'" class="mt-2 text-xs text-red-400">发音不可用</p>
-        <p v-if="ttsError" class="mt-1 break-all text-xs muted">{{ ttsError }}</p>
-        <p v-else-if="ttsState === 'playing'" class="mt-2 text-xs text-emerald-500">正在播放...</p>
       </section>
     </div>
     <BottomNav />
