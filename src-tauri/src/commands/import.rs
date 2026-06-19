@@ -11,13 +11,8 @@ pub fn rate_card(
     duration_seconds: Option<i64>,
 ) -> Result<service::study::RateResult, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    service::study::rate_card(
-        &conn,
-        &card_id,
-        quality,
-        duration_seconds.unwrap_or(0),
-    )
-    .map_err(Into::into)
+    service::study::rate_card(&conn, &card_id, quality, duration_seconds.unwrap_or(0))
+        .map_err(Into::into)
 }
 
 /// Parse text content (format detection + parsing + validation).

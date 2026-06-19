@@ -339,7 +339,7 @@ async function focusSearch() {
 .library-title {
   margin: 0;
   color: #1a326c;
-  font-size: 1.84rem;
+  font-size: 1.64rem;
   line-height: 1;
   font-weight: 950;
 }

@@ -13,26 +13,25 @@ pub fn get_learning_stats(conn: &Connection) -> Result<LearningStats, rusqlite::
     let previous_week_start = week_start - Duration::days(7);
     let next_week_start = week_start + Duration::days(7);
 
-    let (total_cards, mastered_cards, learning_cards, new_cards, due_cards) =
-        conn.query_row(
-            "SELECT
+    let (total_cards, mastered_cards, learning_cards, new_cards, due_cards) = conn.query_row(
+        "SELECT
                 COUNT(*),
                 SUM(CASE WHEN repetitions >= 2 THEN 1 ELSE 0 END),
                 SUM(CASE WHEN repetitions = 1 THEN 1 ELSE 0 END),
                 SUM(CASE WHEN repetitions = 0 THEN 1 ELSE 0 END),
                 SUM(CASE WHEN next_review <= ?1 THEN 1 ELSE 0 END)
              FROM cards",
-            params![today_text],
-            |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, Option<i64>>(1)?.unwrap_or(0),
-                    row.get::<_, Option<i64>>(2)?.unwrap_or(0),
-                    row.get::<_, Option<i64>>(3)?.unwrap_or(0),
-                    row.get::<_, Option<i64>>(4)?.unwrap_or(0),
-                ))
-            },
-        )?;
+        params![today_text],
+        |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, Option<i64>>(1)?.unwrap_or(0),
+                row.get::<_, Option<i64>>(2)?.unwrap_or(0),
+                row.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                row.get::<_, Option<i64>>(4)?.unwrap_or(0),
+            ))
+        },
+    )?;
 
     let (total_reviews, total_study_seconds, mastered_reviews) = conn.query_row(
         "SELECT
@@ -41,7 +40,13 @@ pub fn get_learning_stats(conn: &Connection) -> Result<LearningStats, rusqlite::
             COALESCE(SUM(CASE WHEN quality = 5 THEN 1 ELSE 0 END), 0)
          FROM review_logs",
         [],
-        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?)),
+        |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        },
     )?;
     let accuracy_rate = if total_reviews == 0 {
         0
@@ -49,11 +54,8 @@ pub fn get_learning_stats(conn: &Connection) -> Result<LearningStats, rusqlite::
         (mastered_reviews * 100 + total_reviews / 2) / total_reviews
     };
 
-    let (this_week_reviews, this_week_seconds) = period_totals(
-        conn,
-        &week_start.to_string(),
-        &next_week_start.to_string(),
-    )?;
+    let (this_week_reviews, this_week_seconds) =
+        period_totals(conn, &week_start.to_string(), &next_week_start.to_string())?;
     let (previous_week_reviews, previous_week_seconds) = period_totals(
         conn,
         &previous_week_start.to_string(),
@@ -84,11 +86,7 @@ pub fn get_learning_stats(conn: &Connection) -> Result<LearningStats, rusqlite::
     })
 }
 
-fn period_totals(
-    conn: &Connection,
-    start: &str,
-    end: &str,
-) -> Result<(i64, i64), rusqlite::Error> {
+fn period_totals(conn: &Connection, start: &str, end: &str) -> Result<(i64, i64), rusqlite::Error> {
     conn.query_row(
         "SELECT COUNT(*), COALESCE(SUM(duration_seconds), 0)
          FROM review_logs
@@ -126,8 +124,7 @@ fn recent_activity(
         .map(|offset| {
             let date = start + Duration::days(offset);
             let date_text = date.to_string();
-            let (review_count, study_seconds) =
-                values.get(&date_text).copied().unwrap_or((0, 0));
+            let (review_count, study_seconds) = values.get(&date_text).copied().unwrap_or((0, 0));
             DailyActivity {
                 date: date_text,
                 review_count,
@@ -215,11 +212,8 @@ mod tests {
         let yesterday = today - Duration::days(1);
         let old_day = today - Duration::days(4);
 
-        conn.execute(
-            "INSERT INTO decks (id, name) VALUES ('deck', 'Test')",
-            [],
-        )
-        .unwrap();
+        conn.execute("INSERT INTO decks (id, name) VALUES ('deck', 'Test')", [])
+            .unwrap();
         for (id, repetitions, next_review) in [
             ("new", 0, today.to_string()),
             ("learning", 1, (today + Duration::days(1)).to_string()),

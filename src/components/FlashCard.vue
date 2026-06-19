@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Loader, MoreVertical, Volume2, VolumeX } from 'lucide-vue-next'
 import { speakWord } from '../platform/tts.js'
 
@@ -23,11 +23,34 @@ const props = defineProps({
 
 const emit = defineEmits(['rate', 'toggle-pause', 'continue-study'])
 
+const revealed = ref(false)
 const ttsState = ref('idle') // idle | loading | playing | unavailable
 const progressPercent = computed(() => {
   if (!props.total) return 0
   return Math.max(6, Math.round((props.current / props.total) * 100))
 })
+
+watch(
+  () => props.card?.id,
+  () => {
+    revealed.value = false
+  },
+  { immediate: true }
+)
+
+function revealAnswer() {
+  if (props.paused) return
+  revealed.value = true
+}
+
+function handleRate(quality) {
+  if (props.paused) return
+  if (!revealed.value) {
+    revealed.value = true
+    return
+  }
+  emit('rate', quality)
+}
 
 function speak(event) {
   event.stopPropagation()
@@ -46,6 +69,9 @@ function speak(event) {
       class="soft-panel flashcard-panel relative flex min-h-[378px] flex-1 flex-col overflow-hidden rounded-[24px] px-[1.05rem] py-[0.98rem] text-left"
       :class="{ 'flashcard-panel-paused': paused }"
       :style="{ '--hero-image': `url(${studyHeroArt})` }"
+      @click="revealAnswer"
+      @keydown.space.prevent="revealAnswer"
+      tabindex="0"
     >
       <div class="flashcard-header">
         <div class="flashcard-deck-chip">
@@ -58,41 +84,53 @@ function speak(event) {
       </div>
 
       <div class="flashcard-copy">
-        <h2 class="flashcard-word">{{ card.word }}</h2>
+        <div class="flashcard-word-row">
+          <span class="flashcard-speak-anchor" aria-hidden="true" />
+          <h2 class="flashcard-word">{{ card.word }}</h2>
+          <button
+            class="flashcard-speak-button"
+            @click="speak"
+            :title="ttsState === 'unavailable' ? 'TTS 不可用' : '发音'"
+            :disabled="ttsState === 'loading' || paused"
+          >
+            <Loader v-if="ttsState === 'loading'" class="h-4 w-4 animate-spin" />
+            <VolumeX v-else-if="ttsState === 'unavailable'" class="h-4 w-4 text-slate-300" />
+            <Volume2 v-else class="h-4 w-4" />
+          </button>
+        </div>
 
-        <div class="flashcard-subcopy">
-          <div class="flashcard-phonetic-row">
-            <p v-if="card.inflections && card.inflections.length" class="flashcard-phonetic">
-              /{{ card.inflections[0] }}/
+        <p v-if="!revealed" class="flashcard-reveal-hint">点击卡片查看答案</p>
+
+        <transition name="reveal">
+          <div v-if="revealed" class="flashcard-answer">
+            <div class="flashcard-inflections">
+              <p
+                v-for="(inflection, index) in card.inflections"
+                :key="`${card.id}-inflection-${index}`"
+                class="flashcard-inflection-line"
+              >
+                {{ inflection }}
+              </p>
+              <p v-if="!card.inflections || !card.inflections.length" class="flashcard-inflection-line flashcard-inflection-line-muted">
+                --
+              </p>
+            </div>
+
+            <p v-if="card.definition" class="flashcard-definition">
+              {{ card.definition }}
             </p>
-            <p v-else class="flashcard-phonetic flashcard-phonetic-muted">/--/</p>
-            <button
-              class="flashcard-speak-button"
-              @click="speak"
-              :title="ttsState === 'unavailable' ? 'TTS 不可用' : '发音'"
-              :disabled="ttsState === 'loading' || paused"
-            >
-              <Loader v-if="ttsState === 'loading'" class="h-4 w-4 animate-spin" />
-              <VolumeX v-else-if="ttsState === 'unavailable'" class="h-4 w-4 text-slate-300" />
-              <Volume2 v-else class="h-4 w-4" />
-            </button>
+            <p v-else class="flashcard-definition flashcard-definition-empty">暂无释义</p>
           </div>
-          <p v-if="ttsState === 'unavailable'" class="flashcard-tts-note">发音不可用，请检查网络或 TTS 设置</p>
-        </div>
+        </transition>
 
-        <div class="relative z-10">
-          <p v-if="card.definition" class="flashcard-definition">
-            {{ card.definition }}
-          </p>
-          <p v-else class="flashcard-definition flashcard-definition-empty">暂无释义</p>
-        </div>
+        <p v-if="ttsState === 'unavailable'" class="flashcard-tts-note">发音不可用，请检查网络或 TTS 设置</p>
       </div>
 
       <div class="flashcard-rate-grid" @click.stop>
-<button
+        <button
           class="flashcard-rate-button flashcard-rate-button-unknown"
           :disabled="paused"
-          @click="emit('rate', 0)"
+          @click="handleRate(0)"
         >
           <img class="flashcard-rate-icon" :src="studyUnknownIcon" alt="" aria-hidden="true" />
           <span class="flashcard-rate-label flashcard-rate-label-unknown">不认识</span>
@@ -100,7 +138,7 @@ function speak(event) {
         <button
           class="flashcard-rate-button flashcard-rate-button-hazy"
           :disabled="paused"
-          @click="emit('rate', 3)"
+          @click="handleRate(3)"
         >
           <img class="flashcard-rate-icon" :src="studyHazyIcon" alt="" aria-hidden="true" />
           <span class="flashcard-rate-label flashcard-rate-label-hazy">模糊</span>
@@ -108,7 +146,7 @@ function speak(event) {
         <button
           class="flashcard-rate-button flashcard-rate-button-known"
           :disabled="paused"
-          @click="emit('rate', 5)"
+          @click="handleRate(5)"
         >
           <img class="flashcard-rate-icon" :src="studyKnownIcon" alt="" aria-hidden="true" />
           <span class="flashcard-rate-label flashcard-rate-label-known">认识</span>
@@ -159,12 +197,12 @@ function speak(event) {
   position: absolute;
   inset: 0;
   background-image: var(--hero-image);
-  background-position: 72% 58%;
+  background-position: 78% 54%;
   background-repeat: no-repeat;
-  background-size: 118% auto;
-  opacity: 1;
-  filter: saturate(1.08) contrast(1.03) brightness(1.01);
-  transform: translateY(-100px);
+  background-size: 108% auto;
+  opacity: 0.34;
+  filter: saturate(0.84) contrast(0.94) brightness(1.04);
+  transform: translateY(-72px);
   pointer-events: none;
 }
 
@@ -173,8 +211,7 @@ function speak(event) {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.91) 0%, rgba(255, 255, 255, 0.76) 28%, rgba(255, 255, 255, 0.42) 45%, rgba(255, 255, 255, 0.12) 67%, rgba(255, 255, 255, 0.03) 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.12) 100%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.44) 0%, rgba(255, 255, 255, 0.68) 22%, rgba(255, 255, 255, 0.9) 56%, rgba(255, 255, 255, 0.96) 100%);
   pointer-events: none;
 }
 
@@ -224,91 +261,133 @@ function speak(event) {
 }
 
 .flashcard-copy {
-  margin-top: 2rem;
+  display: flex;
+  max-width: min(18.5rem, calc(100% - 2.4rem));
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 1.8rem;
+  text-align: center;
+}
+
+.flashcard-word-row {
+  display: inline-grid;
+  grid-template-columns: 2.32rem auto 2.32rem;
+  align-items: center;
+  column-gap: 0.42rem;
+  width: 100%;
+  justify-content: center;
 }
 
 .flashcard-word {
   margin: 0;
-  max-width: 10.2rem;
   color: #182f6c;
-  font-size: 2.8rem;
-  line-height: 0.94;
+  font-size: clamp(2.8rem, 7vw, 3.4rem);
+  line-height: 0.9;
   font-weight: 950;
-  letter-spacing: -0.05em;
+  letter-spacing: -0.06em;
+  text-align: center;
 }
 
-.flashcard-phonetic-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.52rem;
+.flashcard-speak-anchor {
+  width: 2.32rem;
+  height: 2.32rem;
+  opacity: 0;
 }
 
 .flashcard-speak-button {
-  display: flex;
-  width: 2.02rem;
-  height: 2.02rem;
+  display: grid;
+  width: 2.32rem;
+  height: 2.32rem;
   flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
+  place-items: center;
   border: 0;
   border-radius: 999px;
-  background: rgba(236, 242, 255, 0.84);
+  background: rgba(232, 240, 255, 0.92);
   color: #2c69f9;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 8px 18px rgba(68, 103, 191, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98);
 }
 
-.flashcard-subcopy {
-  min-height: 1.76rem;
-  margin-top: 0.8rem;
-  margin-bottom: 0.8rem;
+.flashcard-reveal-hint {
+  margin: 1rem 0 0;
+  color: #8fa0be;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.5;
 }
 
-.flashcard-phonetic {
+.flashcard-answer {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.flashcard-inflections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  width: 100%;
+}
+
+.flashcard-inflection-line {
   margin: 0;
+  width: 100%;
   color: #29406f;
-  font-size: 1rem;
+  font-size: 1.02rem;
+  line-height: 1.34;
+  font-weight: 700;
+  word-break: break-word;
+  text-align: center;
+}
+
+.flashcard-inflection-line-muted {
+  color: #9aabc8;
   font-weight: 700;
 }
 
-.flashcard-phonetic-muted {
-  color: #9aabc8;
-  font-weight: 650;
-}
-
 .flashcard-tts-note {
-  margin: 0.45rem 0 0;
+  margin: 0.6rem 0 0;
   color: #99a8c2;
   font-size: 0.72rem;
-}
-
-.flashcard-divider {
-  display: block;
-  width: 1.42rem;
-  height: 0.18rem;
-  margin: 0.02rem 0 0.42rem;
-  border-radius: 999px;
-  background: #c3d1eb;
+  line-height: 1.45;
 }
 
 .flashcard-definition {
-  margin: 0;
-  max-width: 9.4rem;
+  margin: 1rem 0 0;
+  width: 100%;
   color: #122f6e;
-  font-size: 1rem;
-  line-height: 1.3;
+  font-size: 1.08rem;
+  line-height: 1.42;
   font-weight: 850;
+  word-break: break-word;
+  text-align: center;
 }
 
 .flashcard-definition-empty {
   color: #95a5c1;
 }
 
+.reveal-enter-active {
+  transition: all 0.24s ease-out;
+}
+
+.reveal-leave-active {
+  transition: all 0.18s ease-in;
+}
+
+.reveal-enter-from,
+.reveal-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 .flashcard-rate-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.6rem;
-  margin-top: 4rem;
-  padding-top: 0;
+  margin-top: auto;
+  padding-top: 1.05rem;
 }
 
 .flashcard-rate-button {

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import {
   ArrowRight,
   CalendarDays,
@@ -8,16 +8,17 @@ import {
 } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
 import BottomNav from '../components/BottomNav.vue'
+import { getAppSettings } from '../platform/appSettings'
 
 const router = useRouter()
-const route = useRoute()
 const store = useAppStore()
 const statsHeroArt = new URL('../assets/hero/stats-hero-bg.png', import.meta.url).href
 const suggestionIcon = new URL('../assets/icons/stats-suggestion-icon.svg', import.meta.url).href
 const streakIcon = new URL('../assets/icons/stats-summary-streak.svg', import.meta.url).href
 const recordIcon = new URL('../assets/icons/stats-summary-record.svg', import.meta.url).href
 const correctIcon = new URL('../assets/icons/stats-summary-correct.svg', import.meta.url).href
-const useDevMockData = computed(() => import.meta.env.DEV && route.query.real !== '1')
+const appSettings = getAppSettings()
+const useMockData = computed(() => appSettings.stats?.enableMockDataFallback === true)
 
 const rangeTabs = ['本周', '本月', '全部']
 
@@ -66,11 +67,11 @@ const mockStats = {
 }
 
 onMounted(() => {
-  if (useDevMockData.value) return
+  if (useMockData.value) return
   store.refreshAll()
 })
 
-const stats = computed(() => useDevMockData.value ? mockStats : (store.learningStats || emptyStats))
+const stats = computed(() => useMockData.value ? mockStats : (store.learningStats || emptyStats))
 
 const masteryRate = computed(() => stats.value.totalCards
   ? Math.round((stats.value.masteredCards / stats.value.totalCards) * 100)
@@ -166,7 +167,7 @@ const ringGradient = computed(() => {
   )`
 })
 
-const weeklyCorrectionCount = computed(() => useDevMockData.value ? 36 : (Number(stats.value.dueCards) || 0))
+const weeklyCorrectionCount = computed(() => useMockData.value ? 36 : (Number(stats.value.dueCards) || 0))
 
 function shortWeekday(date) {
   return ['日', '一', '二', '三', '四', '五', '六'][new Date(`${date}T00:00:00`).getDay()]
@@ -354,7 +355,7 @@ function formatChartDuration(seconds) {
 .stats-title {
   margin: 0;
   color: #152b62;
-  font-size: 2.12rem;
+  font-size: 1.84rem;
   line-height: 1.02;
   font-weight: 950;
 }

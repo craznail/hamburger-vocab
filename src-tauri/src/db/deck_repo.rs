@@ -47,7 +47,10 @@ pub fn delete_deck(conn: &Connection, id: &str) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-pub fn get_deck_by_id(conn: &Connection, deck_id: &str) -> Result<Option<DeckInfo>, rusqlite::Error> {
+pub fn get_deck_by_id(
+    conn: &Connection,
+    deck_id: &str,
+) -> Result<Option<DeckInfo>, rusqlite::Error> {
     let mut stmt = conn.prepare("SELECT id, name, created_at FROM decks WHERE id = ?1")?;
     let mut rows = stmt.query_map(params![deck_id], |row| {
         Ok(DeckInfo {

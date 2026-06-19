@@ -123,8 +123,13 @@ pub fn create_error_draft(
     })
 }
 
-pub fn get_error_items(conn: &Connection, notebook_id: Option<&str>) -> Result<Vec<ErrorItem>, rusqlite::Error> {
-    let (sql, params_vec): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(id) = notebook_id {
+pub fn get_error_items(
+    conn: &Connection,
+    notebook_id: Option<&str>,
+) -> Result<Vec<ErrorItem>, rusqlite::Error> {
+    let (sql, params_vec): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(id) =
+        notebook_id
+    {
         (
             format!("{ERROR_ITEM_SELECT} WHERE e.deleted_at IS NULL AND e.notebook_id = ?1 ORDER BY e.updated_at DESC"),
             vec![Box::new(id.to_string())],
@@ -292,8 +297,19 @@ pub fn rate_error_item(
     duration_seconds: i64,
 ) -> Result<ErrorReviewResult, rusqlite::Error> {
     let item = get_error_item(conn, id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
-    let result = crate::algorithm::sm2::compute_next_review(quality, item.ef, item.interval, item.repetitions);
-    let mastery_level = if result.repetitions >= 2 { 2 } else if result.repetitions == 1 { 1 } else { 0 };
+    let result = crate::algorithm::sm2::compute_next_review(
+        quality,
+        item.ef,
+        item.interval,
+        item.repetitions,
+    );
+    let mastery_level = if result.repetitions >= 2 {
+        2
+    } else if result.repetitions == 1 {
+        1
+    } else {
+        0
+    };
     conn.execute(
         "UPDATE error_items
          SET ef = ?1, interval = ?2, repetitions = ?3, next_review = ?4,
@@ -328,7 +344,13 @@ pub fn rate_error_item(
 }
 
 pub fn get_sync_value(conn: &Connection, key: &str) -> Result<Option<String>, rusqlite::Error> {
-    Ok(conn.query_row("SELECT value FROM sync_state WHERE key = ?1", params![key], |row| row.get(0)).ok())
+    Ok(conn
+        .query_row(
+            "SELECT value FROM sync_state WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        )
+        .ok())
 }
 
 pub fn set_sync_value(conn: &Connection, key: &str, value: &str) -> Result<(), rusqlite::Error> {
@@ -340,7 +362,9 @@ pub fn set_sync_value(conn: &Connection, key: &str, value: &str) -> Result<(), r
     Ok(())
 }
 
-pub fn pending_review_logs_json(conn: &Connection) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
+pub fn pending_review_logs_json(
+    conn: &Connection,
+) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT l.id, e.remote_id, l.quality, l.reviewed_at, l.duration_seconds, l.mastery_level, l.next_review
          FROM error_review_logs l
@@ -369,8 +393,14 @@ pub fn mark_review_logs_synced(conn: &Connection) -> Result<(), rusqlite::Error>
     Ok(())
 }
 
-pub fn upsert_pulled_error_item(conn: &Connection, item: &serde_json::Value) -> Result<(), rusqlite::Error> {
-    let remote_id = item.get("remoteId").and_then(|v| v.as_str()).unwrap_or_default();
+pub fn upsert_pulled_error_item(
+    conn: &Connection,
+    item: &serde_json::Value,
+) -> Result<(), rusqlite::Error> {
+    let remote_id = item
+        .get("remoteId")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
     if remote_id.is_empty() {
         return Ok(());
     }
@@ -451,7 +481,10 @@ pub fn upsert_pulled_error_item(conn: &Connection, item: &serde_json::Value) -> 
     Ok(())
 }
 
-pub fn apply_pulled_deletions(conn: &Connection, ids: &[serde_json::Value]) -> Result<(), rusqlite::Error> {
+pub fn apply_pulled_deletions(
+    conn: &Connection,
+    ids: &[serde_json::Value],
+) -> Result<(), rusqlite::Error> {
     for id in ids {
         if let Some(remote_id) = id.as_str() {
             conn.execute(

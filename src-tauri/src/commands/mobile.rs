@@ -65,11 +65,20 @@ pub async fn mobile_login(
         .map_err(|e| format!("登录响应解析失败: {e}"))?;
 
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    crate::db::error_repo::set_sync_value(&conn, "server_url", &server_url).map_err(|e| e.to_string())?;
-    crate::db::error_repo::set_sync_value(&conn, "access_token", &login.access_token).map_err(|e| e.to_string())?;
-    crate::db::error_repo::set_sync_value(&conn, "refresh_token", &login.refresh_token).map_err(|e| e.to_string())?;
-    crate::db::error_repo::set_sync_value(&conn, "access_expires_in", &login.expires_in.to_string()).map_err(|e| e.to_string())?;
-    crate::db::error_repo::set_sync_value(&conn, "mobile_user", &login.user.to_string()).map_err(|e| e.to_string())?;
+    crate::db::error_repo::set_sync_value(&conn, "server_url", &server_url)
+        .map_err(|e| e.to_string())?;
+    crate::db::error_repo::set_sync_value(&conn, "access_token", &login.access_token)
+        .map_err(|e| e.to_string())?;
+    crate::db::error_repo::set_sync_value(&conn, "refresh_token", &login.refresh_token)
+        .map_err(|e| e.to_string())?;
+    crate::db::error_repo::set_sync_value(
+        &conn,
+        "access_expires_in",
+        &login.expires_in.to_string(),
+    )
+    .map_err(|e| e.to_string())?;
+    crate::db::error_repo::set_sync_value(&conn, "mobile_user", &login.user.to_string())
+        .map_err(|e| e.to_string())?;
 
     Ok(AuthStatus {
         logged_in: true,
@@ -81,8 +90,10 @@ pub async fn mobile_login(
 #[tauri::command]
 pub fn get_auth_status(state: State<'_, DbState>) -> Result<AuthStatus, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let access = crate::db::error_repo::get_sync_value(&conn, "access_token").map_err(|e| e.to_string())?;
-    let server_url = crate::db::error_repo::get_sync_value(&conn, "server_url").map_err(|e| e.to_string())?;
+    let access =
+        crate::db::error_repo::get_sync_value(&conn, "access_token").map_err(|e| e.to_string())?;
+    let server_url =
+        crate::db::error_repo::get_sync_value(&conn, "server_url").map_err(|e| e.to_string())?;
     let user = crate::db::error_repo::get_sync_value(&conn, "mobile_user")
         .map_err(|e| e.to_string())?
         .and_then(|value| serde_json::from_str(&value).ok());

@@ -46,13 +46,8 @@ pub fn rate_practice_card(
     duration_seconds: Option<i64>,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    crate::db::card_repo::add_practice_log(
-        &conn,
-        &card_id,
-        quality,
-        duration_seconds.unwrap_or(0),
-    )
-    .map_err(|e| e.to_string())
+    crate::db::card_repo::add_practice_log(&conn, &card_id, quality, duration_seconds.unwrap_or(0))
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

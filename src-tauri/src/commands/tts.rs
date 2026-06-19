@@ -13,9 +13,7 @@ pub async fn synthesize_speech(
 ) -> Result<TtsSynthesisResponse, String> {
     validate_request(&request)?;
     let provider = provider_for(&request.provider)?;
-    let audio = provider
-        .synthesize(&client_state.client, &request)
-        .await?;
+    let audio = provider.synthesize(&client_state.client, &request).await?;
 
     Ok(TtsSynthesisResponse {
         audio_base64: STANDARD.encode(audio.bytes),

@@ -31,8 +31,7 @@ impl TtsProvider for AzureTtsProvider {
             .unwrap_or("en-US");
         let rate = normalize_rate(request.rate.as_deref().unwrap_or("0%"));
         let volume = normalize_volume(request.volume.as_deref().unwrap_or("+35%"));
-        let endpoint =
-            format!("https://{region}.tts.speech.microsoft.com/cognitiveservices/v1");
+        let endpoint = format!("https://{region}.tts.speech.microsoft.com/cognitiveservices/v1");
         let ssml = format!(
             "<speak version='1.0' xml:lang='{language}'><voice name='{voice}'><prosody rate='{rate}' volume='{volume}'>{}</prosody></voice></speak>",
             escape_xml(request.text.trim())
@@ -46,7 +45,7 @@ impl TtsProvider for AzureTtsProvider {
                 "X-Microsoft-OutputFormat",
                 "audio-24khz-96kbitrate-mono-mp3",
             )
-            .header("User-Agent", "Recall")
+            .header("User-Agent", "知久")
             .body(ssml)
             .send()
             .await

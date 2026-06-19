@@ -6,6 +6,7 @@ import { BarChart3, CheckCircle } from 'lucide-vue-next'
 import FlashCard from '../components/FlashCard.vue'
 import BottomNav from '../components/BottomNav.vue'
 import { useErrorNotebookStore } from '../stores/useErrorNotebookStore'
+import { getAppSettings } from '../platform/appSettings'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,6 +15,7 @@ const errorStore = useErrorNotebookStore()
 const studyPlanIcon = new URL('../assets/icons/study-plan-icon.svg', import.meta.url).href
 const studyDictationIcon = new URL('../assets/icons/study-dictation-tile.svg', import.meta.url).href
 const studyErrorIcon = new URL('../assets/icons/study-error-tile.svg', import.meta.url).href
+const appSettings = getAppSettings()
 
 const cards = ref([])
 const currentIndex = ref(0)
@@ -27,8 +29,8 @@ const usingDevMockData = ref(false)
 
 const deckId = computed(() => route.query.deckId || null)
 const forcePractice = computed(() => route.query.mode === 'practice')
-const isPreviewMode = computed(() => import.meta.env.DEV && route.query.preview === '1')
-const allowDevMockFallback = computed(() => import.meta.env.DEV && route.query.real !== '1')
+const allowMockFallback = computed(() => appSettings.study?.enableMockDataFallback === true)
+const isPreviewMode = computed(() => allowMockFallback.value && route.query.preview === '1')
 const currentCard = computed(() => cards.value[currentIndex.value] || null)
 const isPractice = computed(() => mode.value === 'practice')
 const pageTitle = computed(() => route.query.deckName || (isPractice.value ? '自由练习' : '今日学习'))
@@ -127,7 +129,7 @@ async function loadCards({ forcePractice = false } = {}) {
     cards.value = []
   }
   if (cards.value.length === 0) {
-    if (allowDevMockFallback.value) {
+    if (allowMockFallback.value) {
       loadPreviewSession()
       return
     }
@@ -359,7 +361,7 @@ async function continueStudy() {
 .study-title {
   margin: 0;
   color: #1a326c;
-  font-size: 1.82rem;
+  font-size: 1.62rem;
   line-height: 1;
   font-weight: 950;
 }

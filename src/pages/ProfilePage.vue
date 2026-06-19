@@ -176,7 +176,7 @@ const settingRows = [
 .profile-title {
   margin: 0;
   color: #152b62;
-  font-size: 2rem;
+  font-size: 1.74rem;
   line-height: 1.02;
   font-weight: 950;
 }

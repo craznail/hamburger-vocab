@@ -83,8 +83,8 @@ function getDeckDue(deck) {
     <div class="home-shell">
       <header class="home-topbar">
         <div class="min-w-0">
-          <h1 class="home-title">Recall</h1>
-          <p class="home-subtitle">今天先完成最重要的复习</p>
+          <h1 class="home-title">知久</h1>
+          <p class="home-subtitle">让一切知识记忆长久</p>
         </div>
         <button class="home-calendar-action" title="复习日历" @click="goCalendar">
           <CalendarDays class="h-4.5 w-4.5" />

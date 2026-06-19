@@ -5,13 +5,16 @@ import { Bell, Check, ChevronRight, Cloud, DatabaseBackup, Eye, EyeOff, HelpCirc
 import NavBar from '../components/NavBar.vue'
 import { downloadDB } from '../api/card'
 import { getTtsSettings, saveTtsSettings, speakWord, TTS_PROVIDERS } from '../platform/tts'
+import { getAppSettings, saveAppSettings } from '../platform/appSettings'
 
 const router = useRouter()
 const ttsSettings = reactive(getTtsSettings())
+const appSettings = reactive(getAppSettings())
 const showApiKey = ref(false)
 const saveState = ref('idle')
 const testState = ref('idle')
 const testError = ref('')
+const appSaveState = ref('idle')
 
 const azureVoices = [
   { value: 'en-US-JennyNeural', label: 'Jenny · 美式女声' },
@@ -26,11 +29,18 @@ function saveSpeechSettings() {
   setTimeout(() => { saveState.value = 'idle' }, 1600)
 }
 
+function toggleMockFallback(section) {
+  appSettings[section].enableMockDataFallback = !appSettings[section].enableMockDataFallback
+  saveAppSettings(appSettings)
+  appSaveState.value = 'saved'
+  setTimeout(() => { appSaveState.value = 'idle' }, 1600)
+}
+
 async function testSpeech() {
   saveSpeechSettings()
   testError.value = ''
   try {
-    await speakWord('Welcome to Recall', {
+    await speakWord('欢迎使用知久', {
       onStateChange: state => { testState.value = state }
     })
   } catch (error) {
@@ -59,7 +69,7 @@ const groups = [
   {
     title: '关于应用',
     items: [
-      { label: '关于 Recall', icon: Eye, value: 'v0.3.0' },
+      { label: '关于知久', icon: Eye, value: 'v0.3.0' },
       { label: '帮助与反馈', icon: HelpCircle }
     ]
   }
@@ -70,11 +80,82 @@ const groups = [
   <div class="app-page flex min-h-screen flex-col">
     <NavBar @back="router.push({ name: 'Profile' })">
       <template #left>
-        <h1 class="page-header-title text-[1.54rem]">设置</h1>
+        <h1 class="page-header-title">设置</h1>
       </template>
     </NavBar>
 
     <main class="flex-1 px-4 pb-8 pt-4">
+      <section class="mb-5">
+        <div class="mb-2 flex items-center justify-between px-1">
+          <h2 class="text-xs font-bold text-slate-400">调试假数据</h2>
+          <span class="text-[11px] font-semibold text-slate-400">默认关闭</span>
+        </div>
+
+        <div class="soft-panel overflow-hidden">
+          <div class="border-b border-blue-50 p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <p class="text-sm font-bold text-ink">学习页兜底假数据</p>
+                <p class="mt-1 text-xs leading-5 text-slate-400">
+                  打开后，学习页在没有真实卡片时会显示预览假数据，`?preview=1` 也会使用这份预览内容。
+                </p>
+              </div>
+
+              <button
+                class="shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition-colors"
+                :class="appSettings.study.enableMockDataFallback ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'"
+                @click="toggleMockFallback('study')"
+              >
+                {{ appSettings.study.enableMockDataFallback ? '已开启' : '已关闭' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="border-b border-blue-50 p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <p class="text-sm font-bold text-ink">统计页假数据</p>
+                <p class="mt-1 text-xs leading-5 text-slate-400">
+                  打开后，统计页会显示演示统计结果；关闭时只展示真实学习统计或空数据。
+                </p>
+              </div>
+
+              <button
+                class="shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition-colors"
+                :class="appSettings.stats.enableMockDataFallback ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'"
+                @click="toggleMockFallback('stats')"
+              >
+                {{ appSettings.stats.enableMockDataFallback ? '已开启' : '已关闭' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <p class="text-sm font-bold text-ink">错题页假数据</p>
+                <p class="mt-1 text-xs leading-5 text-slate-400">
+                  打开后，错题页会显示演示题目，并阻止登录和同步真实服务；关闭时只读取真实错题数据。
+                </p>
+              </div>
+
+              <button
+                class="shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition-colors"
+                :class="appSettings.errorNotebook.enableMockDataFallback ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'"
+                @click="toggleMockFallback('errorNotebook')"
+              >
+                {{ appSettings.errorNotebook.enableMockDataFallback ? '已开启' : '已关闭' }}
+              </button>
+            </div>
+          </div>
+
+          <p class="px-4 pb-4 text-[11px] leading-5 text-slate-400">
+            关闭时，各页面只显示真实数据；没有数据就展示对应空状态。
+            <span v-if="appSaveState === 'saved'" class="ml-1 font-semibold text-blue-500">已保存</span>
+          </p>
+        </div>
+      </section>
+
       <section class="mb-5">
         <div class="mb-2 flex items-center justify-between px-1">
           <h2 class="text-xs font-bold text-slate-400">语音服务</h2>

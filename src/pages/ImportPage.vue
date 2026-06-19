@@ -42,7 +42,7 @@ async function onFileSelected(fileName, text) {
   <div class="app-page flex min-h-screen flex-col">
     <NavBar @back="router.push({ name: 'Library' })">
       <template #left>
-        <h1 class="page-header-title text-[1.54rem]">导入</h1>
+        <h1 class="page-header-title">导入</h1>
       </template>
     </NavBar>
 
@@ -54,6 +54,31 @@ async function onFileSelected(fileName, text) {
             <span class="grid h-11 w-11 place-items-center rounded-xl bg-white text-emerald-500 shadow-sm"><FileCode2 class="h-5 w-5" /></span>
           </div>
           <FileUpload @file-selected="onFileSelected" />
+        </div>
+
+        <div class="mt-4 rounded-[22px] bg-white/80 p-4 text-left shadow-sm ring-1 ring-blue-100">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-sm font-black text-ink">导入格式</h2>
+            <span class="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-500">仅支持此格式</span>
+          </div>
+          <p class="mt-2 text-xs leading-5 text-slate-500">
+            每条数据首行是单词，中间各行是词形变化，最后一行是释义。两条数据之间保留一个空行。
+          </p>
+          <pre class="mt-3 overflow-x-auto rounded-2xl bg-slate-950 px-4 py-3 text-[12px] leading-6 text-slate-100"><code>am
+was been
+是
+
+is
+was been
+是
+
+are
+were been
+是
+
+can
+could could
+能</code></pre>
         </div>
       </section>
 

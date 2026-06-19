@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import {
@@ -18,16 +18,17 @@ import BottomNav from '../components/BottomNav.vue'
 import * as errorApi from '../api/errorItem'
 import * as authApi from '../api/auth'
 import { useErrorNotebookStore } from '../stores/useErrorNotebookStore'
+import { getAppSettings } from '../platform/appSettings'
 
 const router = useRouter()
-const route = useRoute()
 const notebookStore = useErrorNotebookStore()
 const { items, auth, loading, syncError, dueCount, pendingCount, initialized } = storeToRefs(notebookStore)
 const syncMessage = ref('')
 const showLoginForm = ref(false)
 const failedImages = ref(new Set<string>())
 const errorNotebookHeroArt = new URL('../assets/hero/error-notebook-hero-bg.png', import.meta.url).href
-const useDevMockData = computed(() => import.meta.env.DEV && route.query.real !== '1')
+const appSettings = getAppSettings()
+const useMockData = computed(() => appSettings.errorNotebook?.enableMockDataFallback === true)
 const loginForm = ref({
   serverUrl: localStorage.getItem('wrongNotebookServerUrl') || 'http://localhost:3000',
   email: '',
@@ -141,16 +142,16 @@ const mockItems = computed<errorApi.ErrorItem[]>(() => ([
   },
 ]))
 
-const displayItems = computed(() => useDevMockData.value ? mockItems.value : items.value)
-const displayAuth = computed(() => useDevMockData.value ? { loggedIn: false } : auth.value)
-const displayLoading = computed(() => useDevMockData.value ? false : loading.value)
-const displayInitialized = computed(() => useDevMockData.value ? true : initialized.value)
+const displayItems = computed(() => useMockData.value ? mockItems.value : items.value)
+const displayAuth = computed(() => useMockData.value ? { loggedIn: false } : auth.value)
+const displayLoading = computed(() => useMockData.value ? false : loading.value)
+const displayInitialized = computed(() => useMockData.value ? true : initialized.value)
 const displayDueCount = computed(() => {
-  if (!useDevMockData.value) return dueCount.value
+  if (!useMockData.value) return dueCount.value
   return mockItems.value.filter(item => item.nextReview === '今天' || item.mistakeStatus === 'due').length
 })
 const displayPendingCount = computed(() => {
-  if (!useDevMockData.value) return pendingCount.value
+  if (!useMockData.value) return pendingCount.value
   return mockItems.value.filter(item => item.syncStatus !== 'synced').length
 })
 
@@ -158,13 +159,13 @@ const sortedItems = computed(() => [...displayItems.value].sort((a, b) => String
 const statusMessage = computed(() => syncMessage.value || syncError.value)
 
 onMounted(() => {
-  if (useDevMockData.value) return
+  if (useMockData.value) return
   void notebookStore.ensureFresh()
 })
 
 async function login() {
-  if (useDevMockData.value) {
-    syncMessage.value = '当前为调试数据模式，访问真实服务请使用 ?real=1'
+  if (useMockData.value) {
+    syncMessage.value = '当前为调试假数据模式，请到设置页关闭后再连接真实服务'
     return
   }
   syncMessage.value = ''
@@ -176,8 +177,8 @@ async function login() {
 }
 
 async function sync() {
-  if (useDevMockData.value) {
-    syncMessage.value = '当前为调试数据模式，访问真实服务请使用 ?real=1'
+  if (useMockData.value) {
+    syncMessage.value = '当前为调试假数据模式，请到设置页关闭后再同步真实数据'
     return
   }
   syncMessage.value = ''
@@ -375,7 +376,7 @@ function getStatusText(item: errorApi.ErrorItem) {
 .error-header-title {
   margin: 0;
   text-align: center;
-  font-size: 1rem;
+  font-size: 0.92rem;
   font-weight: 900;
   color: #18274f;
 }

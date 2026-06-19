@@ -26,7 +26,11 @@ fn row_to_today_card(row: &rusqlite::Row<'_>) -> rusqlite::Result<TodayCard> {
     })
 }
 
-pub fn import_cards(conn: &Connection, deck_id: &str, cards: &[CardImport]) -> Result<(), rusqlite::Error> {
+pub fn import_cards(
+    conn: &Connection,
+    deck_id: &str,
+    cards: &[CardImport],
+) -> Result<(), rusqlite::Error> {
     let mut stmt = conn.prepare(
         "INSERT OR IGNORE INTO cards (id, deck_id, word, inflections, definition)
          VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -46,7 +50,10 @@ pub fn import_cards(conn: &Connection, deck_id: &str, cards: &[CardImport]) -> R
     Ok(())
 }
 
-pub fn get_cards_by_deck_id(conn: &Connection, deck_id: &str) -> Result<Vec<Card>, rusqlite::Error> {
+pub fn get_cards_by_deck_id(
+    conn: &Connection,
+    deck_id: &str,
+) -> Result<Vec<Card>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, deck_id, word, inflections, definition, ef, interval, repetitions,
                 next_review, created_at, last_review_at
@@ -75,9 +82,14 @@ pub fn get_cards_by_deck_id(conn: &Connection, deck_id: &str) -> Result<Vec<Card
     Ok(result)
 }
 
-pub fn get_today_cards(conn: &Connection, deck_id: Option<&str>) -> Result<Vec<TodayCard>, rusqlite::Error> {
+pub fn get_today_cards(
+    conn: &Connection,
+    deck_id: Option<&str>,
+) -> Result<Vec<TodayCard>, rusqlite::Error> {
     let today = today_str();
-    let (clause, param_values): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(did) = deck_id {
+    let (clause, param_values): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(did) =
+        deck_id
+    {
         (
             " WHERE c.deck_id = ?1 AND c.next_review <= ?2 ORDER BY c.ef ASC, c.next_review ASC LIMIT 50".to_string(),
             vec![Box::new(did.to_string()), Box::new(today)],
@@ -91,7 +103,8 @@ pub fn get_today_cards(conn: &Connection, deck_id: Option<&str>) -> Result<Vec<T
     let sql = format!("{TODAY_CARD_SELECT}{clause}");
 
     let mut stmt = conn.prepare(&sql)?;
-    let param_refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
+    let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+        param_values.iter().map(|p| p.as_ref()).collect();
     let rows = stmt.query_map(param_refs.as_slice(), row_to_today_card)?;
     let mut result = Vec::new();
     for row in rows {
@@ -111,10 +124,7 @@ pub fn get_practice_cards(
                 vec![Box::new(did.to_string())],
             )
         } else {
-            (
-                " ORDER BY RANDOM() LIMIT 50".to_string(),
-                vec![],
-            )
+            (" ORDER BY RANDOM() LIMIT 50".to_string(), vec![])
         };
     let sql = format!("{TODAY_CARD_SELECT}{clause}");
 

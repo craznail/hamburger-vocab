@@ -474,7 +474,7 @@ button.soft-panel:active,
 }
 
 .page-header-title {
-  font-size: 1.58rem;
+  font-size: 1.4rem;
   font-weight: 900;
   line-height: 1.05;
   color: var(--ink);
@@ -756,7 +756,7 @@ button.soft-panel:active,
 .home-title {
   margin: 0;
   color: #1a326c;
-  font-size: 1.88rem;
+  font-size: 1.68rem;
   line-height: 0.98;
   font-weight: 950;
 }

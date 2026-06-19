@@ -5,7 +5,10 @@ use std::fs;
 use std::path::Path;
 use tauri::{Manager, State};
 
-use crate::db::models::{AnalyzeErrorFailureResponse, AnalyzeErrorResponse, ErrorDraft, ErrorItem, ErrorNotebook, ErrorReviewResult};
+use crate::db::models::{
+    AnalyzeErrorFailureResponse, AnalyzeErrorResponse, ErrorDraft, ErrorItem, ErrorNotebook,
+    ErrorReviewResult,
+};
 use crate::db::DbState;
 use crate::http::HttpClientState;
 
@@ -43,10 +46,14 @@ fn parse_data_url(value: &str, mime_type: Option<String>) -> Result<(Vec<u8>, St
             .split_once(',')
             .ok_or_else(|| "图片 Data URL 格式无效".to_string())?;
         let detected_mime = meta.split(';').next().unwrap_or("image/jpeg").to_string();
-        let bytes = STANDARD.decode(data).map_err(|e| format!("图片 base64 解码失败: {e}"))?;
+        let bytes = STANDARD
+            .decode(data)
+            .map_err(|e| format!("图片 base64 解码失败: {e}"))?;
         Ok((bytes, detected_mime))
     } else {
-        let bytes = STANDARD.decode(value).map_err(|e| format!("图片 base64 解码失败: {e}"))?;
+        let bytes = STANDARD
+            .decode(value)
+            .map_err(|e| format!("图片 base64 解码失败: {e}"))?;
         Ok((bytes, mime_type.unwrap_or_else(|| "image/jpeg".into())))
     }
 }
@@ -197,10 +204,13 @@ pub async fn analyze_error_draft(
         let text = response.text().await.unwrap_or_default();
         let conn = state.conn.lock().map_err(|e| e.to_string())?;
         if let Ok(failure) = serde_json::from_str::<AnalyzeErrorFailureResponse>(&text) {
-            crate::db::error_repo::apply_analyze_failure_response(&conn, &id, &failure).map_err(|e| e.to_string())?;
+            crate::db::error_repo::apply_analyze_failure_response(&conn, &id, &failure)
+                .map_err(|e| e.to_string())?;
             return Err(format!(
                 "AI 分析失败: {} ({status})",
-                failure.message.unwrap_or_else(|| failure.code.unwrap_or_else(|| "服务端未返回详细原因".into()))
+                failure.message.unwrap_or_else(|| failure
+                    .code
+                    .unwrap_or_else(|| "服务端未返回详细原因".into()))
             ));
         }
         crate::db::error_repo::mark_analyze_failed(&conn, &id).map_err(|e| e.to_string())?;
@@ -212,7 +222,8 @@ pub async fn analyze_error_draft(
         .await
         .map_err(|e| format!("AI 分析响应解析失败: {e}"))?;
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    crate::db::error_repo::apply_analyze_response(&conn, &id, &parsed).map_err(|e| e.to_string())?;
+    crate::db::error_repo::apply_analyze_response(&conn, &id, &parsed)
+        .map_err(|e| e.to_string())?;
     crate::db::error_repo::get_error_item(&conn, &id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "错题不存在".into())
@@ -241,7 +252,8 @@ pub async fn sync_error_items(
     let (server_url, access_token, review_logs, since) = {
         let conn = state.conn.lock().map_err(|e| e.to_string())?;
         let (server_url, access_token) = read_token_and_server(&conn)?;
-        let review_logs = crate::db::error_repo::pending_review_logs_json(&conn).map_err(|e| e.to_string())?;
+        let review_logs =
+            crate::db::error_repo::pending_review_logs_json(&conn).map_err(|e| e.to_string())?;
         let since = crate::db::error_repo::get_sync_value(&conn, "last_error_sync_at")
             .map_err(|e| e.to_string())?
             .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".into());
@@ -275,7 +287,10 @@ pub async fn sync_error_items(
     if !pull.status().is_success() {
         return Err(format!("同步拉取失败: {}", pull.status()));
     }
-    let payload = pull.json::<serde_json::Value>().await.map_err(|e| e.to_string())?;
+    let payload = pull
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|e| e.to_string())?;
     let server_time = payload
         .get("serverTime")
         .and_then(|v| v.as_str())
@@ -285,13 +300,16 @@ pub async fn sync_error_items(
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     if let Some(items) = payload.get("errorItems").and_then(|v| v.as_array()) {
         for item in items {
-            crate::db::error_repo::upsert_pulled_error_item(&conn, item).map_err(|e| e.to_string())?;
+            crate::db::error_repo::upsert_pulled_error_item(&conn, item)
+                .map_err(|e| e.to_string())?;
         }
     }
     if let Some(deleted_ids) = payload.get("deletedIds").and_then(|v| v.as_array()) {
-        crate::db::error_repo::apply_pulled_deletions(&conn, deleted_ids).map_err(|e| e.to_string())?;
+        crate::db::error_repo::apply_pulled_deletions(&conn, deleted_ids)
+            .map_err(|e| e.to_string())?;
     }
     crate::db::error_repo::mark_review_logs_synced(&conn).map_err(|e| e.to_string())?;
-    crate::db::error_repo::set_sync_value(&conn, "last_error_sync_at", &server_time).map_err(|e| e.to_string())?;
+    crate::db::error_repo::set_sync_value(&conn, "last_error_sync_at", &server_time)
+        .map_err(|e| e.to_string())?;
     Ok(payload)
 }

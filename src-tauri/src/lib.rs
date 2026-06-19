@@ -27,7 +27,10 @@ pub fn run() {
             }
 
             // Initialize database
-            let app_data_dir = app.path().app_data_dir().expect("failed to get app data dir");
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to get app data dir");
             std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
             let db_path = app_data_dir.join("vocab.db");
             log::info!("Database path: {:?}", db_path);
