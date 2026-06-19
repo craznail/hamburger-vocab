@@ -283,7 +283,7 @@ async function save() {
 .error-header-title {
   margin: 0;
   text-align: center;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 900;
   color: #18274f;
 }

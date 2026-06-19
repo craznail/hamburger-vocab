@@ -70,7 +70,7 @@ const groups = [
   <div class="app-page flex min-h-screen flex-col">
     <NavBar @back="router.push({ name: 'Profile' })">
       <template #left>
-        <h1 class="page-header-title text-[1.7rem]">设置</h1>
+        <h1 class="page-header-title text-[1.54rem]">设置</h1>
       </template>
     </NavBar>
 

@@ -1,8 +1,4 @@
 <script setup>
-import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAppStore } from '../stores/useAppStore'
-import { useErrorNotebookStore } from '../stores/useErrorNotebookStore'
 import {
   BookOpen,
   CalendarDays,
@@ -15,11 +11,16 @@ import {
   Headphones,
   NotebookPen,
 } from 'lucide-vue-next'
+import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import BottomNav from '../components/BottomNav.vue'
+import { useAppStore } from '../stores/useAppStore'
+import { useErrorNotebookStore } from '../stores/useErrorNotebookStore'
 
 const router = useRouter()
 const store = useAppStore()
 const errorStore = useErrorNotebookStore()
+const homeHeroArt = new URL('../assets/hero/home-hero-bg.png', import.meta.url).href
 
 onMounted(() => {
   store.refreshAll()
@@ -91,8 +92,8 @@ function getDeckDue(deck) {
         </button>
       </header>
 
-      <section class="home-focus-card mb-2">
-        <div class="home-focus-hero">
+      <section class="home-focus-card mb-2" :style="{ '--hero-image': `url(${homeHeroArt})` }">
+        <div class="home-focus-hero" >
           <div class="home-focus-copy">
             <div class="home-focus-kicker">
               <CheckSquare class="h-4 w-4" />
@@ -102,19 +103,6 @@ function getDeckDue(deck) {
               <span class="home-focus-number">{{ store.todayCount }}</span>
             </div>
             <p class="home-focus-unit">张卡片待复习</p>
-          </div>
-          <div class="home-card-illustration" aria-hidden="true">
-            <div class="home-card-grid" />
-            <div class="home-card-stack home-card-stack-back" />
-            <div class="home-card-stack home-card-stack-mid" />
-            <div class="home-card-stack home-card-stack-front">
-              <strong>abandon</strong>
-              <span />
-              <span />
-              <span />
-            </div>
-            <div class="home-card-ring" />
-            <div class="home-card-pencil" />
           </div>
         </div>
 

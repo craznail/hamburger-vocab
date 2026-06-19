@@ -474,7 +474,7 @@ button.soft-panel:active,
 }
 
 .page-header-title {
-  font-size: 1.7rem;
+  font-size: 1.58rem;
   font-weight: 900;
   line-height: 1.05;
   color: var(--ink);
@@ -756,7 +756,7 @@ button.soft-panel:active,
 .home-title {
   margin: 0;
   color: #1a326c;
-  font-size: 2.08rem;
+  font-size: 1.88rem;
   line-height: 0.98;
   font-weight: 950;
 }
@@ -799,14 +799,50 @@ button.soft-panel:active,
 }
 
 .home-focus-card {
+  position: relative;
+  overflow: hidden;
   padding: 0.82rem 0.92rem 0.72rem;
+  background:
+    radial-gradient(circle at 77% 34%, rgba(96, 143, 255, 0.13), transparent 24%),
+    radial-gradient(circle at 76% 64%, rgba(139, 173, 255, 0.1), transparent 36%),
+    radial-gradient(circle at 28% 82%, rgba(241, 246, 255, 0.82), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(249, 252, 255, 0.97) 100%);
+}
+
+.home-focus-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--hero-image);
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: 100% auto;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 72%, rgba(0, 0, 0, 0.84) 86%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 72%, rgba(0, 0, 0, 0.84) 86%, transparent 100%);
+  pointer-events: none;
+}
+
+.home-focus-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 78% 56%, rgba(142, 172, 255, 0.08), transparent 20%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.02) 52%, rgba(247, 250, 255, 0.16) 100%);
+  pointer-events: none;
+}
+
+.home-focus-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .home-focus-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 9.2rem;
-  gap: 0.25rem;
-  align-items: center;
+  min-height: 10.6rem;
+}
+
+.home-focus-copy {
+  max-width: 8rem;
 }
 
 .home-focus-kicker {
@@ -839,6 +875,22 @@ button.soft-panel:active,
 .home-card-illustration {
   position: relative;
   height: 8.25rem;
+}
+
+.home-card-illustration-image {
+  position: absolute;
+  inset: -0.1rem -0.42rem -0.24rem 0.18rem;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  display: none;
+}
+
+.home-card-grid,
+.home-card-stack,
+.home-card-ring,
+.home-card-pencil {
+  display: none;
 }
 
 .home-card-grid {
@@ -959,8 +1011,8 @@ button.soft-panel:active,
 .home-focus-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.62rem;
-  margin-top: 0.62rem;
+  gap: 0.8rem;
+  margin-top: 0.5rem;
 }
 
 .home-primary-action,
@@ -997,8 +1049,11 @@ button.soft-panel:active,
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
   margin-top: 0.7rem;
-  border-top: 1px solid rgba(226, 232, 245, 0.92);
-  padding-top: 0.68rem;
+  border: 1px solid rgba(225, 232, 244, 0.78);
+  border-radius: 0.68rem;
+  background: rgba(255, 255, 255, 0.56);
+  padding: 0.7rem 0.66rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 .home-stat-item {
@@ -1011,8 +1066,8 @@ button.soft-panel:active,
 
 .home-stat-item + .home-stat-item {
   border-left: 1px solid rgba(226, 232, 245, 0.92);
-  padding-left: 0.7rem;
-  margin-left: 0.18rem;
+  padding-left: 0.66rem;
+  margin-left: 0.12rem;
 }
 
 .home-stat-item strong {

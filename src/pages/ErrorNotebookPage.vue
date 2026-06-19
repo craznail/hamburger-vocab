@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import {
@@ -20,25 +20,153 @@ import * as authApi from '../api/auth'
 import { useErrorNotebookStore } from '../stores/useErrorNotebookStore'
 
 const router = useRouter()
+const route = useRoute()
 const notebookStore = useErrorNotebookStore()
 const { items, auth, loading, syncError, dueCount, pendingCount, initialized } = storeToRefs(notebookStore)
 const syncMessage = ref('')
 const showLoginForm = ref(false)
 const failedImages = ref(new Set<string>())
+const errorNotebookHeroArt = new URL('../assets/hero/error-notebook-hero-bg.png', import.meta.url).href
+const useDevMockData = computed(() => import.meta.env.DEV && route.query.real !== '1')
 const loginForm = ref({
   serverUrl: localStorage.getItem('wrongNotebookServerUrl') || 'http://localhost:3000',
   email: '',
   password: '',
 })
 
-const sortedItems = computed(() => [...items.value].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))))
+const mockItems = computed<errorApi.ErrorItem[]>(() => ([
+  {
+    id: 'mock-error-1',
+    remoteId: null,
+    notebookId: 'mock-notebook',
+    notebookName: '英语错题',
+    questionText: '选择正确的时态填空：By the time we arrived, the lecture ____.',
+    answerText: 'had started',
+    analysis: 'by the time 引导过去时间点，主句常用过去完成时，表示在到达前已经发生。',
+    wrongAnswerText: 'started',
+    mistakeAnalysis: '容易把两个过去动作都写成一般过去时，没有拉开先后关系。',
+    mistakeStatus: 'due',
+    knowledgePoints: JSON.stringify(['过去完成时', '时态辨析']),
+    userNotes: '总把 started 和 had started 混掉',
+    masteryLevel: 2,
+    ef: 2.36,
+    interval: 1,
+    repetitions: 2,
+    nextReview: '今天',
+    syncStatus: 'synced',
+    version: 1,
+    createdAt: '2026-06-18 20:12:00',
+    updatedAt: '2026-06-19 09:21:00',
+    deletedAt: null,
+    localImagePath: null,
+    remoteImageUrl: '',
+  },
+  {
+    id: 'mock-error-2',
+    remoteId: null,
+    notebookId: 'mock-notebook',
+    notebookName: '英语错题',
+    questionText: '阅读理解定位错误：主旨题误选了细节项，需要回到首段和尾段抓中心句。',
+    answerText: 'A',
+    analysis: '主旨题先看篇章框架，不要被中间例子带偏。',
+    wrongAnswerText: 'C',
+    mistakeAnalysis: '做题时抓到了具体例子，但没有回扣作者态度和全文主线。',
+    mistakeStatus: 'due',
+    knowledgePoints: JSON.stringify(['阅读主旨题', '篇章结构']),
+    userNotes: '先看首尾句，再看转折',
+    masteryLevel: 1,
+    ef: 2.18,
+    interval: 1,
+    repetitions: 1,
+    nextReview: '今天',
+    syncStatus: 'pending_sync',
+    version: 1,
+    createdAt: '2026-06-18 19:02:00',
+    updatedAt: '2026-06-19 08:40:00',
+    deletedAt: null,
+    localImagePath: null,
+    remoteImageUrl: '',
+  },
+  {
+    id: 'mock-error-3',
+    remoteId: null,
+    notebookId: 'mock-notebook',
+    notebookName: '数学错题',
+    questionText: '数列求和题：裂项后中间项没有完全消掉，最后一项符号写反。',
+    answerText: '11/12',
+    analysis: '裂项后先写出前 3 项和后 3 项，再观察抵消关系，最后统一通分。',
+    wrongAnswerText: '13/12',
+    mistakeAnalysis: '步骤不完整导致最后整理时把负号看成正号。',
+    mistakeStatus: 'learning',
+    knowledgePoints: JSON.stringify(['裂项求和', '分式化简']),
+    userNotes: '草稿必须把首尾项写全',
+    masteryLevel: 3,
+    ef: 2.52,
+    interval: 3,
+    repetitions: 3,
+    nextReview: '明天',
+    syncStatus: 'synced',
+    version: 1,
+    createdAt: '2026-06-17 17:46:00',
+    updatedAt: '2026-06-19 07:12:00',
+    deletedAt: null,
+    localImagePath: null,
+    remoteImageUrl: '',
+  },
+  {
+    id: 'mock-error-4',
+    remoteId: null,
+    notebookId: 'mock-notebook',
+    notebookName: '英语错题',
+    questionText: '完形填空词义辨析：ignore / neglect / overlook 三个近义词没有区分语境。',
+    answerText: 'overlook',
+    analysis: 'overlook 更符合“疏忽、未注意到”的语境，ignore 偏主动无视。',
+    wrongAnswerText: 'ignore',
+    mistakeAnalysis: '只记了中文意思，没有结合语气和搭配辨析。',
+    mistakeStatus: 'pending_analysis',
+    knowledgePoints: JSON.stringify(['词义辨析', '完形填空']),
+    userNotes: '近义词要看语气强弱',
+    masteryLevel: 0,
+    ef: 2.1,
+    interval: 0,
+    repetitions: 0,
+    nextReview: '待分析',
+    syncStatus: 'pending_analysis',
+    version: 1,
+    createdAt: '2026-06-19 11:05:00',
+    updatedAt: '2026-06-19 11:05:00',
+    deletedAt: null,
+    localImagePath: null,
+    remoteImageUrl: '',
+  },
+]))
+
+const displayItems = computed(() => useDevMockData.value ? mockItems.value : items.value)
+const displayAuth = computed(() => useDevMockData.value ? { loggedIn: false } : auth.value)
+const displayLoading = computed(() => useDevMockData.value ? false : loading.value)
+const displayInitialized = computed(() => useDevMockData.value ? true : initialized.value)
+const displayDueCount = computed(() => {
+  if (!useDevMockData.value) return dueCount.value
+  return mockItems.value.filter(item => item.nextReview === '今天' || item.mistakeStatus === 'due').length
+})
+const displayPendingCount = computed(() => {
+  if (!useDevMockData.value) return pendingCount.value
+  return mockItems.value.filter(item => item.syncStatus !== 'synced').length
+})
+
+const sortedItems = computed(() => [...displayItems.value].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))))
 const statusMessage = computed(() => syncMessage.value || syncError.value)
 
 onMounted(() => {
+  if (useDevMockData.value) return
   void notebookStore.ensureFresh()
 })
 
 async function login() {
+  if (useDevMockData.value) {
+    syncMessage.value = '当前为调试数据模式，访问真实服务请使用 ?real=1'
+    return
+  }
   syncMessage.value = ''
   auth.value = await authApi.login(loginForm.value.serverUrl, loginForm.value.email, loginForm.value.password)
   localStorage.setItem('wrongNotebookServerUrl', loginForm.value.serverUrl)
@@ -48,6 +176,10 @@ async function login() {
 }
 
 async function sync() {
+  if (useDevMockData.value) {
+    syncMessage.value = '当前为调试数据模式，访问真实服务请使用 ?real=1'
+    return
+  }
   syncMessage.value = ''
   try {
     await notebookStore.syncRemote()
@@ -87,7 +219,6 @@ function getStatusText(item: errorApi.ErrorItem) {
       <div class="error-header-spacer" />
       <div class="text-center">
         <h1 class="error-header-title">错题本</h1>
-        <p class="error-header-subtitle">总览更轻，列表更聚焦</p>
       </div>
       <button class="error-header-button" type="button" aria-label="同步错题" @click="sync">
         <RefreshCw class="h-5 w-5" />
@@ -95,7 +226,7 @@ function getStatusText(item: errorApi.ErrorItem) {
     </header>
 
     <main class="error-main">
-      <section class="error-overview-card">
+      <section class="error-overview-card error-overview-card-hero" :style="{ '--hero-image': `url(${errorNotebookHeroArt})` }">
         <div class="error-overview-top">
           <div class="error-overview-main">
             <p class="error-overview-kicker">
@@ -118,24 +249,24 @@ function getStatusText(item: errorApi.ErrorItem) {
           </div>
 
           <div class="error-overview-stat">
-            <div class="error-overview-count">{{ dueCount }}</div>
+            <div class="error-overview-count">{{ displayDueCount }}</div>
             <p class="error-overview-count-label">待复习</p>
 
             <div class="error-overview-side">
               <span class="error-meta-pill">
                 <Target class="h-4 w-4" />
-                {{ items.length }} 道
+                {{ displayItems.length }} 道
               </span>
               <span class="error-meta-pill">
                 <Sparkles class="h-4 w-4" />
-                {{ pendingCount }} 待同步
+                {{ displayPendingCount }} 待同步
               </span>
             </div>
           </div>
         </div>
       </section>
 
-      <section v-if="!auth.loggedIn" class="error-login-card">
+      <section v-if="!displayAuth.loggedIn" class="error-login-card">
         <div class="error-login-head">
           <div class="error-card-head">
             <Cloud class="h-5 w-5 text-[#2f7cff]" />
@@ -162,7 +293,7 @@ function getStatusText(item: errorApi.ErrorItem) {
       <section class="error-list-panel">
         <div class="error-list-head">
           <h2 class="error-section-title">最近错题</h2>
-          <Loader v-if="loading" class="h-4 w-4 animate-spin text-blue-400" />
+          <Loader v-if="displayLoading" class="h-4 w-4 animate-spin text-blue-400" />
         </div>
 
         <div v-if="sortedItems.length" class="error-list">
@@ -196,7 +327,7 @@ function getStatusText(item: errorApi.ErrorItem) {
           </button>
         </div>
 
-        <div v-else-if="!initialized && loading" class="error-list">
+        <div v-else-if="!displayInitialized && displayLoading" class="error-list">
           <div v-for="placeholder in 3" :key="placeholder" class="error-list-item error-list-item-placeholder">
             <div class="animate-pulse w-full">
               <div class="h-4 w-2/3 rounded-full bg-blue-100"></div>
@@ -244,7 +375,7 @@ function getStatusText(item: errorApi.ErrorItem) {
 .error-header-title {
   margin: 0;
   text-align: center;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 900;
   color: #18274f;
 }
@@ -289,6 +420,15 @@ function getStatusText(item: errorApi.ErrorItem) {
 
 .error-overview-card {
   padding: 1.18rem 1.08rem 1rem;
+}
+
+.error-overview-card-hero {
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(248, 251, 255, 0.9) 100%),
+    var(--hero-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .error-overview-top {

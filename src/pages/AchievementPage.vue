@@ -57,7 +57,7 @@ function achievement(label, value, target, icon, decimals = 0) {
   <div class="app-page flex min-h-screen flex-col">
     <NavBar :showBack="false">
       <template #left>
-        <h1 class="page-header-title text-[1.85rem]">成就</h1>
+        <h1 class="page-header-title text-[1.66rem]">成就</h1>
       </template>
     </NavBar>
 
