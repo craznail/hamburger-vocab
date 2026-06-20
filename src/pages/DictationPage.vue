@@ -1,9 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, CheckCircle, Eye, Heart, Home, Loader, Pause, Play, RotateCcw, Settings, Star, Trees, Volume2, VolumeX } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, CheckCircle, Eye, Home, Loader, Pause, Play, RotateCcw, Settings, Volume2, VolumeX } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
-import { speakWord } from '../platform/tts.js'
+import { prepareSpeech, speakWord } from '../platform/tts.js'
 import NavBar from '../components/NavBar.vue'
 import BottomNav from '../components/BottomNav.vue'
 
@@ -15,18 +15,21 @@ const cards = ref([])
 const currentIndex = ref(0)
 const loading = ref(true)
 const sessionDone = ref(false)
-const skipping = ref(false)
 const answerVisible = ref(false)
 const repeatCount = ref(2)
 const intervalSeconds = ref(3)
+const showPlaybackSettings = ref(false)
 const isPlaying = ref(false)
 const speechState = ref('idle')
 const ttsUnavailable = ref(false)
 const playToken = ref(0)
+const mode = ref('review')
 let speechController = null
+let delayController = null
 
 const deckId = computed(() => route.query.deckId || null)
 const currentCard = computed(() => cards.value[currentIndex.value] || null)
+const isPractice = computed(() => mode.value === 'practice')
 const progress = computed(() => ({
   current: cards.value.length === 0 ? 0 : currentIndex.value + 1,
   total: cards.value.length
@@ -46,18 +49,47 @@ function clampSettings() {
   intervalSeconds.value = Math.min(10, Math.max(1, Number(intervalSeconds.value) || 3))
 }
 
-function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+function wait(ms, signal) {
+  return new Promise(resolve => {
+    if (signal?.aborted) {
+      resolve(false)
+      return
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', abort)
+      resolve(true)
+    }, ms)
+    function abort() {
+      clearTimeout(timer)
+      resolve(false)
+    }
+    signal?.addEventListener('abort', abort, { once: true })
+  })
+}
+
+function warmUpcoming(fromIndex, count = 3) {
+  cards.value
+    .slice(fromIndex, fromIndex + count)
+    .forEach(card => prepareSpeech(card.word).catch(() => {}))
 }
 
 onMounted(async () => {
   try {
-    cards.value = shuffle(await store.getTodayLearningCards(deckId.value))
+    let loadedCards = await store.getTodayLearningCards(deckId.value)
+    if (loadedCards.length > 0) {
+      mode.value = 'review'
+    } else {
+      mode.value = 'practice'
+      loadedCards = await store.getPracticeCards(deckId.value)
+    }
+    cards.value = shuffle(loadedCards)
     if (cards.value.length === 0) {
       sessionDone.value = true
+    } else {
+      warmUpcoming(0)
     }
   } catch (e) {
-    console.warn('加载听写卡片失败（预览模式时正常）:', e)
+    console.warn('加载听写卡片失败:', e)
     cards.value = []
     sessionDone.value = true
   } finally {
@@ -73,10 +105,20 @@ function goHome() {
   router.push({ name: 'Home' })
 }
 
+function togglePlaybackSettings() {
+  showPlaybackSettings.value = !showPlaybackSettings.value
+}
+
+function closePlaybackSettings() {
+  showPlaybackSettings.value = false
+}
+
 function stopPlayback() {
   playToken.value++
   speechController?.abort()
   speechController = null
+  delayController?.abort()
+  delayController = null
   isPlaying.value = false
   speechState.value = 'idle'
   if ('speechSynthesis' in window) {
@@ -88,22 +130,24 @@ async function startPlayback() {
   if (!currentCard.value || isPlaying.value) return
   clampSettings()
   ttsUnavailable.value = false
-  skipping.value = false
   isPlaying.value = true
   const token = ++playToken.value
 
   // 遍历所有剩余单词，自动连续播报
   while (token === playToken.value && currentIndex.value < cards.value.length) {
     const card = cards.value[currentIndex.value]
+    const nextCard = cards.value[currentIndex.value + 1]
+    if (nextCard) prepareSpeech(nextCard.word).catch(() => {})
     answerVisible.value = false
     ttsUnavailable.value = false
 
     for (let i = 0; i < repeatCount.value; i++) {
       if (token !== playToken.value) break
-      speechController = new AbortController()
+      const controller = new AbortController()
+      speechController = controller
       try {
         await speakWord(card.word, {
-          signal: speechController.signal,
+          signal: controller.signal,
           timeoutMs: 30000,
           onStateChange: state => {
             if (token === playToken.value) speechState.value = state
@@ -111,29 +155,33 @@ async function startPlayback() {
         })
       } catch {
         if (token === playToken.value) {
-          if (skipping.value) {
-            // 用户主动跳过当前词，重置标记继续下一个词
-            skipping.value = false
-          } else {
-            ttsUnavailable.value = true
-            speechState.value = 'unavailable'
-          }
+          ttsUnavailable.value = true
+          speechState.value = 'unavailable'
         }
         break
       } finally {
-        speechController = null
+        if (speechController === controller) speechController = null
       }
 
       if (i < repeatCount.value - 1 && token === playToken.value) {
-        await wait(intervalSeconds.value * 1000)
+        const controller = new AbortController()
+        delayController = controller
+        const completed = await wait(intervalSeconds.value * 1000, controller.signal)
+        if (delayController === controller) delayController = null
+        if (!completed) break
       }
     }
 
     // 当前词播完：如果不是最后一个词且未被中止，前进到下一个词
     if (token === playToken.value && currentIndex.value < cards.value.length - 1) {
       currentIndex.value++
+      warmUpcoming(currentIndex.value + 1, 2)
       // 词间停顿
-      await wait(intervalSeconds.value * 1000)
+      const controller = new AbortController()
+      delayController = controller
+      const completed = await wait(intervalSeconds.value * 1000, controller.signal)
+      if (delayController === controller) delayController = null
+      if (!completed) break
     } else {
       break
     }
@@ -157,10 +205,12 @@ function togglePlayback() {
 }
 
 function revealAnswer() {
+  closePlaybackSettings()
   answerVisible.value = true
 }
 
 function goPrevious() {
+  closePlaybackSettings()
   if (currentIndex.value === 0) return
   stopPlayback()
   currentIndex.value--
@@ -169,14 +219,14 @@ function goPrevious() {
 }
 
 function goNext() {
+  closePlaybackSettings()
   if (isPlaying.value && currentIndex.value < cards.value.length - 1) {
-    // 播放中切下一词：跳过当前词继续播
-    skipping.value = true
-    speechController?.abort()
-    speechController = null
+    // Stop the old loop before changing the index so it cannot advance twice.
+    stopPlayback()
     currentIndex.value++
     answerVisible.value = false
     ttsUnavailable.value = false
+    startPlayback()
   } else {
     // 不在播放中：原行为
     stopPlayback()
@@ -190,13 +240,30 @@ function goNext() {
   }
 }
 
-function restartSession() {
+async function restartSession() {
   stopPlayback()
+  closePlaybackSettings()
   currentIndex.value = 0
   answerVisible.value = false
   sessionDone.value = false
   ttsUnavailable.value = false
-  skipping.value = false
+  if (isPractice.value) {
+    loading.value = true
+    try {
+      cards.value = shuffle(await store.getPracticeCards(deckId.value))
+      if (cards.value.length === 0) {
+        sessionDone.value = true
+      } else {
+        warmUpcoming(0)
+      }
+    } catch (e) {
+      console.warn('重新加载自由听写失败:', e)
+      cards.value = []
+      sessionDone.value = true
+    } finally {
+      loading.value = false
+    }
+  }
 }
 
 </script>
@@ -206,18 +273,23 @@ function restartSession() {
     <NavBar @back="goHome">
       <template #left>
         <div v-if="!loading && !sessionDone">
-          <h1 class="text-sm font-black text-ink">听写模式</h1>
+          <h1 class="text-sm font-black text-ink">{{ isPractice ? '自由听写' : '今日听写' }}</h1>
           <p class="mt-1 text-xs text-slate-400">{{ progress.current }} / {{ progress.total }}</p>
         </div>
       </template>
       <template #right>
-        <button v-if="!loading && !sessionDone" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm" title="播报设置">
+        <button
+          v-if="!loading && !sessionDone"
+          class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-500 shadow-sm"
+          title="播报设置"
+          @click="togglePlaybackSettings"
+        >
           <Settings class="h-5 w-5" />
         </button>
       </template>
     </NavBar>
 
-    <div v-if="!loading && !sessionDone && progress.total > 0" class="px-5">
+    <div v-if="!loading && !sessionDone && progress.total > 0" class="px-4 pt-2">
       <div class="progress-track h-1.5">
         <div class="progress-fill" :style="{ width: `${Math.round((progress.current / progress.total) * 100)}%` }" />
       </div>
@@ -231,10 +303,10 @@ function restartSession() {
       <div class="soft-panel w-full rounded-2xl p-8 text-center">
         <CheckCircle class="mx-auto mb-4 h-16 w-16 text-green-400" />
         <h2 class="mb-2 text-xl font-black text-ink">
-          {{ cards.length === 0 ? '今日无待听写' : '本轮播报完成' }}
+          {{ cards.length === 0 ? '暂无可听写卡片' : (isPractice ? '自由听写完成' : '本轮播报完成') }}
         </h2>
         <p class="mb-6 text-sm text-slate-400">
-          {{ cards.length === 0 ? '当前没有到期单词，明天再来吧' : `共播报 ${cards.length} 个单词` }}
+          {{ cards.length === 0 ? '当前范围内还没有卡片' : `共播报 ${cards.length} 个单词` }}
         </p>
         <div class="flex justify-center gap-3">
           <button
@@ -256,11 +328,59 @@ function restartSession() {
       </div>
     </div>
 
-    <div v-else-if="currentCard" class="flex flex-1 flex-col px-5 py-5">
+    <div v-else-if="currentCard" class="flex flex-1 flex-col px-4 py-5">
       <div class="flex flex-1 flex-col gap-5">
-        <div class="soft-panel flex-1 rounded-[24px] px-5 py-8 text-center">
+        <div v-if="showPlaybackSettings" class="soft-panel rounded-2xl p-4">
+          <div class="mb-3 flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-black text-ink">播报设置</h2>
+              <p class="mt-1 text-xs text-slate-400">调整重复次数和每次播报之间的停顿</p>
+            </div>
+            <button
+              class="rounded-lg px-2 py-1 text-xs font-bold text-slate-400"
+              @click="closePlaybackSettings"
+            >
+              关闭
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block">
+              <span class="mb-1.5 block text-xs font-bold text-slate-500">重复次数</span>
+              <select
+                v-model="repeatCount"
+                class="h-11 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm text-ink outline-none focus:border-blue-300"
+              >
+                <option :value="1">1 次</option>
+                <option :value="2">2 次</option>
+                <option :value="3">3 次</option>
+                <option :value="4">4 次</option>
+                <option :value="5">5 次</option>
+              </select>
+            </label>
+
+            <label class="block">
+              <span class="mb-1.5 block text-xs font-bold text-slate-500">播报间隔</span>
+              <select
+                v-model="intervalSeconds"
+                class="h-11 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm text-ink outline-none focus:border-blue-300"
+              >
+                <option :value="1">1 秒</option>
+                <option :value="2">2 秒</option>
+                <option :value="3">3 秒</option>
+                <option :value="4">4 秒</option>
+                <option :value="5">5 秒</option>
+                <option :value="6">6 秒</option>
+                <option :value="8">8 秒</option>
+                <option :value="10">10 秒</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="soft-panel flex-1 rounded-[32px] px-6 py-8 text-center">
             <div
-              class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full"
+              class="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full"
               :class="isPlaying ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'"
             >
               <Loader v-if="speechState === 'loading'" class="h-8 w-8 animate-spin" />
@@ -268,12 +388,12 @@ function restartSession() {
               <Volume2 v-else class="h-8 w-8" />
             </div>
 
-            <h1 class="mb-1 text-2xl font-black text-ink">{{ answerVisible ? currentCard.word : '听发音，写下单词' }}</h1>
+            <h1 class="mb-1 text-[2rem] font-black tracking-[-0.03em] text-ink">{{ answerVisible ? currentCard.word : '听发音，写下单词' }}</h1>
             <p v-if="answerVisible && currentCard.inflections?.length" class="mb-5 text-sm font-bold text-blue-500">
               {{ currentCard.inflections.join(' · ') }}
             </p>
 
-            <div class="mx-auto my-6 flex h-12 max-w-[260px] items-center justify-center gap-1 text-blue-400">
+            <div class="mx-auto my-8 flex h-12 max-w-[260px] items-center justify-center gap-1 text-blue-400">
               <span v-for="n in 28" :key="n" class="w-1 rounded-full bg-current" :style="{ height: `${12 + ((n * 7) % 28)}px`, opacity: 0.35 + ((n % 5) * 0.12) }" />
             </div>
 
@@ -297,30 +417,11 @@ function restartSession() {
               </button>
             </div>
 
-            <input class="h-14 w-full rounded-xl border border-blue-100 bg-white px-4 text-center text-sm text-ink outline-none focus:border-blue-300" placeholder="请输入你听到的单词" />
-            <p class="mt-4 text-xs text-slate-400">不知道？点击查看答案</p>
+            <p class="mt-4 text-xs font-medium text-slate-400">请在纸上完成听写，需要时再查看答案</p>
 
             <p v-if="answerVisible && currentCard.definition" class="mt-4 text-sm leading-relaxed text-slate-600">
               {{ currentCard.definition }}
             </p>
-        </div>
-
-        <div class="grid grid-cols-3 gap-4">
-          <button class="red-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-red-200/60" @click="goNext">
-            <Heart class="h-6 w-6" />
-            <span class="text-sm font-black">忘记</span>
-            <span class="text-[10px] text-white/75">1 天后复习</span>
-          </button>
-          <button class="warm-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-amber-200/60" @click="goNext">
-            <Star class="h-6 w-6" />
-            <span class="text-sm font-black">模糊</span>
-            <span class="text-[10px] text-white/75">3 天后复习</span>
-          </button>
-          <button class="green-gradient flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl text-white shadow-lg shadow-green-200/60" @click="goNext">
-            <Trees class="h-6 w-6" />
-            <span class="text-sm font-black">认识</span>
-            <span class="text-[10px] text-white/75">7 天后复习</span>
-          </button>
         </div>
 
         <div class="flex justify-between gap-3">

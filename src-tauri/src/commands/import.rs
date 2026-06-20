@@ -8,9 +8,11 @@ pub fn rate_card(
     state: State<'_, DbState>,
     card_id: String,
     quality: i64,
+    duration_seconds: Option<i64>,
 ) -> Result<service::study::RateResult, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    service::study::rate_card(&conn, &card_id, quality)
+    service::study::rate_card(&conn, &card_id, quality, duration_seconds.unwrap_or(0))
+        .map_err(Into::into)
 }
 
 /// Parse text content (format detection + parsing + validation).
@@ -27,5 +29,5 @@ pub fn import_from_text(
     text: String,
 ) -> Result<service::import::ImportFromTextResult, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    service::import::import_from_text(&conn, &deck_name, &text)
+    service::import::import_from_text(&conn, &deck_name, &text).map_err(Into::into)
 }

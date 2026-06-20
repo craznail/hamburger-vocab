@@ -1,7 +1,7 @@
 [package]
 name = "hamburger-vocab"
-version = "0.2.0"
-description = "单词卡片学习系统 - Tauri 桌面版"
+version = "0.3.0"
+description = "知久 - Tauri 桌面版"
 authors = ["you"]
 license = ""
 repository = ""
@@ -26,5 +26,10 @@ tauri-plugin-fs = "2"
 rusqlite = { version = "0.32", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+base64 = "0.22"
+sha2 = "0.10"
+thiserror = "1"
+ts-rs = { version = "10", features = ["serde-compat"] }

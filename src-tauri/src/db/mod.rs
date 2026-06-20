@@ -5,8 +5,10 @@ use uuid::Uuid;
 
 pub mod card_repo;
 pub mod deck_repo;
+pub mod error_repo;
 pub mod migration;
 pub mod models;
+pub mod study_repo;
 
 pub struct DbState {
     pub conn: Mutex<Connection>,
@@ -32,7 +34,6 @@ pub fn now_str() -> String {
 pub fn init_db(db_path: &std::path::Path) -> Result<Connection, rusqlite::Error> {
     let conn = Connection::open(db_path)?;
     conn.execute_batch("PRAGMA foreign_keys = ON")?;
-    conn.execute_batch(migration::DDL)?;
+    migration::run(&conn)?;
     Ok(conn)
 }
-

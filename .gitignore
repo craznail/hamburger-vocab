@@ -6,6 +6,28 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 
+# Keep the Android activity customization that applies system-bar and cutout
+# insets to the Tauri WebView. All other generated Android files stay ignored.
+!src-tauri/gen/
+src-tauri/gen/*
+!src-tauri/gen/android/
+src-tauri/gen/android/*
+!src-tauri/gen/android/app/
+src-tauri/gen/android/app/*
+!src-tauri/gen/android/app/src/
+src-tauri/gen/android/app/src/*
+!src-tauri/gen/android/app/src/main/
+src-tauri/gen/android/app/src/main/*
+!src-tauri/gen/android/app/src/main/java/
+src-tauri/gen/android/app/src/main/java/*
+!src-tauri/gen/android/app/src/main/java/com/
+src-tauri/gen/android/app/src/main/java/com/*
+!src-tauri/gen/android/app/src/main/java/com/vocab/
+src-tauri/gen/android/app/src/main/java/com/vocab/*
+!src-tauri/gen/android/app/src/main/java/com/vocab/flashcards/
+src-tauri/gen/android/app/src/main/java/com/vocab/flashcards/*
+!src-tauri/gen/android/app/src/main/java/com/vocab/flashcards/MainActivity.kt
+
 # OS
 .DS_Store
 *.swp

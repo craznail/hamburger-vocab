@@ -9,7 +9,10 @@ const props = defineProps({
 const emit = defineEmits(['confirm', 'cancel'])
 
 const formatLabel = computed(() => {
-  const labels = { A: '纯单词列表', B: '单词 + 释义', C: '单词 + 词形 + 释义', unknown: '未识别' }
+  const labels = {
+    D: '分块格式（空行分隔）',
+    unknown: '未识别'
+  }
   return labels[props.result.format] || '未识别'
 })
 </script>

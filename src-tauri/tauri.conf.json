@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "单词卡片",
-  "version": "0.2.0",
+  "productName": "知久",
+  "version": "0.3.0",
   "identifier": "com.vocab.flashcards",
   "build": {
     "frontendDist": "../dist",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "单词卡片",
+        "title": "知久",
         "width": 900,
         "height": 700,
         "minWidth": 600,

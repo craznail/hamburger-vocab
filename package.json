@@ -1,13 +1,21 @@
 {
   "name": "hamburger-vocab",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/vite-dev.mjs",
     "build": "vite build",
     "preview": "vite preview",
-    "tauri": "RUSTC=$HOME/.cargo/bin/rustc PATH=\"/usr/local/bin:$PATH\" tauri"
+    "tauri": "tauri",
+    "dev:desktop": "node scripts/tauri-dev.mjs desktop",
+    "dev:android": "pwsh scripts/android/dev.ps1 run",
+    "dev:android:mac": "bash scripts/android/dev.sh run",
+    "dev:android:logcat": "pwsh scripts/android/dev.ps1 logcat",
+    "dev:android:logcat:mac": "bash scripts/android/dev.sh logcat",
+    "build:android": "pwsh scripts/android/dev.ps1 build",
+    "build:android:mac": "bash scripts/android/dev.sh build",
+    "build:desktop": "tauri build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
@@ -24,6 +32,8 @@
     "@vitejs/plugin-vue": "^6.0.6",
     "playwright": "^1.60.0",
     "tailwindcss": "^4.1.0",
-    "vite": "^8.0.12"
+    "typescript": "^6.0.3",
+    "vite": "^8.0.12",
+    "vue-tsc": "^3.3.5"
   }
 }

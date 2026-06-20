@@ -36,9 +36,10 @@ onMounted(async () => {
 
 const filteredCards = computed(() => {
   let result = cards.value
-  const today = new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   if (activeFilter.value === 'due') {
-    result = result.filter(c => c.nextReview <= today && c.repetitions < 2)
+    result = result.filter(c => c.nextReview <= today)
   } else if (activeFilter.value === 'mastered') {
     result = result.filter(c => c.repetitions >= 2)
   }
@@ -82,15 +83,15 @@ function speak(word) {
 </script>
 
 <template>
-  <div v-if="loading" class="flex items-center justify-center min-h-screen">
+  <div v-if="loading" class="app-page flex items-center justify-center">
     <p class="text-gray-400">加载中...</p>
   </div>
-  <div v-else class="min-h-screen flex flex-col">
+  <div v-else class="app-page flex flex-col">
     <NavBar @back="goBack">
       <template #right>
         <div class="flex gap-2">
           <button
-            v-if="stats.due > 0"
+            v-if="stats.total > 0"
             class="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm cursor-pointer"
             @click="goStudy"
           >
@@ -98,7 +99,7 @@ function speak(word) {
             学习
           </button>
           <button
-            v-if="stats.due > 0"
+            v-if="stats.total > 0"
             class="flex items-center gap-1.5 px-4 py-2 border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 transition-colors text-sm cursor-pointer"
             @click="goDictation"
           >

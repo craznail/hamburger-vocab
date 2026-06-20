@@ -19,9 +19,15 @@ fn add_days(date_str: &str, days: i64) -> String {
     let month: u32 = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(1);
     let day: u32 = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(1);
 
-    let date = chrono::NaiveDate::from_ymd_opt(year, month, day).unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+    let date = chrono::NaiveDate::from_ymd_opt(year, month, day)
+        .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
     let new_date = date + chrono::Duration::days(days);
-    format!("{}-{:02}-{:02}", new_date.year(), new_date.month(), new_date.day())
+    format!(
+        "{}-{:02}-{:02}",
+        new_date.year(),
+        new_date.month(),
+        new_date.day()
+    )
 }
 
 /// Compute next review schedule based on SM-2 algorithm.

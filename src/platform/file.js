@@ -56,19 +56,26 @@ async function resolveFileName(filePath) {
 }
 
 /**
- * Read text file content via Tauri invoke (Rust-side file reading).
+ * Read text file content.
+ * Uses @tauri-apps/plugin-fs which handles Android content:// URIs correctly.
+ * Falls back to Rust-side reading for desktop paths.
  */
 export async function readTxtFile(path) {
-  const { invoke } = await import('@tauri-apps/api/core')
-
   const TIMEOUT_MS = 15000
   const timeout = new Promise((_, reject) =>
     setTimeout(() => reject(new Error(`读取文件超时 (${path.substring(0, 50)}...)`)), TIMEOUT_MS)
   )
 
-  const result = await Promise.race([
+  // On Android, path is a content:// URI — must use fs plugin
+  if (isAndroid || path.startsWith('content://')) {
+    const { readTextFile } = await import('@tauri-apps/plugin-fs')
+    return await Promise.race([readTextFile(path), timeout])
+  }
+
+  // Desktop: use Rust-side reading
+  const { invoke } = await import('@tauri-apps/api/core')
+  return await Promise.race([
     invoke('read_txt_content', { path }),
     timeout
   ])
-  return result
 }

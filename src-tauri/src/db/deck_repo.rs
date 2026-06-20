@@ -17,13 +17,14 @@ pub fn get_decks(conn: &Connection) -> Result<Vec<Deck>, rusqlite::Error> {
         "SELECT d.id, d.name, d.created_at,
             COUNT(c.id) AS word_count,
             SUM(CASE WHEN c.repetitions >= 2 THEN 1 ELSE 0 END) AS mastered_count,
-            SUM(CASE WHEN c.next_review <= date('now') AND c.repetitions < 2 THEN 1 ELSE 0 END) AS due_count
+            SUM(CASE WHEN c.next_review <= ?1 THEN 1 ELSE 0 END) AS due_count
          FROM decks d
          LEFT JOIN cards c ON c.deck_id = d.id
          GROUP BY d.id
          ORDER BY d.created_at DESC",
     )?;
-    let rows = stmt.query_map([], |row| {
+    let today = today_str();
+    let rows = stmt.query_map(params![today], |row| {
         Ok(Deck {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -41,12 +42,15 @@ pub fn get_decks(conn: &Connection) -> Result<Vec<Deck>, rusqlite::Error> {
 }
 
 pub fn delete_deck(conn: &Connection, id: &str) -> Result<(), rusqlite::Error> {
-    conn.execute("DELETE FROM cards WHERE deck_id = ?1", params![id])?;
+    // ON DELETE CASCADE handles cards and review_logs automatically
     conn.execute("DELETE FROM decks WHERE id = ?1", params![id])?;
     Ok(())
 }
 
-pub fn get_deck_by_id(conn: &Connection, deck_id: &str) -> Result<Option<DeckInfo>, rusqlite::Error> {
+pub fn get_deck_by_id(
+    conn: &Connection,
+    deck_id: &str,
+) -> Result<Option<DeckInfo>, rusqlite::Error> {
     let mut stmt = conn.prepare("SELECT id, name, created_at FROM decks WHERE id = ?1")?;
     let mut rows = stmt.query_map(params![deck_id], |row| {
         Ok(DeckInfo {
@@ -66,10 +70,10 @@ pub fn get_deck_stats(conn: &Connection, deck_id: &str) -> Result<DeckStats, rus
         "SELECT
             COUNT(*) AS total,
             SUM(CASE WHEN repetitions >= 2 THEN 1 ELSE 0 END) AS mastered,
-            SUM(CASE WHEN next_review <= date('now') AND repetitions < 2 THEN 1 ELSE 0 END) AS due
+            SUM(CASE WHEN next_review <= ?2 THEN 1 ELSE 0 END) AS due
          FROM cards WHERE deck_id = ?1",
     )?;
-    let stats = stmt.query_row(params![deck_id], |row| {
+    let stats = stmt.query_row(params![deck_id, today_str()], |row| {
         Ok(DeckStats {
             total: row.get::<_, Option<i64>>(0)?.unwrap_or(0),
             mastered: row.get::<_, Option<i64>>(1)?.unwrap_or(0),

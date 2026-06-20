@@ -4,11 +4,13 @@ use tauri::Manager;
 mod algorithm;
 mod commands;
 mod db;
+mod error;
 mod http;
 mod platform;
 mod service;
 
 use db::DbState;
+use http::HttpClientState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -25,7 +27,10 @@ pub fn run() {
             }
 
             // Initialize database
-            let app_data_dir = app.path().app_data_dir().expect("failed to get app data dir");
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to get app data dir");
             std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
             let db_path = app_data_dir.join("vocab.db");
             log::info!("Database path: {:?}", db_path);
@@ -34,6 +39,7 @@ pub fn run() {
             app.manage(DbState {
                 conn: Mutex::new(conn),
             });
+            app.manage(HttpClientState::default());
 
             Ok(())
         })
@@ -46,18 +52,33 @@ pub fn run() {
             commands::deck::get_deck_by_id,
             commands::deck::get_deck_stats,
             commands::deck::get_today_count,
+            commands::study::get_learning_stats,
             // Card commands
             commands::card::import_cards,
             commands::card::get_cards_by_deck_id,
             commands::card::get_today_cards,
-            commands::card::update_card_after_review,
-            commands::card::add_review_log,
+            commands::card::get_practice_cards,
+            commands::card::rate_practice_card,
             commands::card::export_db_path,
             commands::card::read_txt_content,
+            // Error notebook commands
+            commands::error_item::create_error_draft,
+            commands::error_item::get_error_notebooks,
+            commands::error_item::get_error_items,
+            commands::error_item::get_due_error_items,
+            commands::error_item::save_error_item,
+            commands::error_item::analyze_error_draft,
+            commands::error_item::rate_error_item,
+            commands::error_item::sync_error_items,
+            // Mobile auth / sync commands
+            commands::mobile::mobile_login,
+            commands::mobile::get_auth_status,
             // Import commands (new integrated commands)
             commands::import::rate_card,
             commands::import::parse_txt_content,
             commands::import::import_from_text,
+            // TTS commands
+            commands::tts::synthesize_speech,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
