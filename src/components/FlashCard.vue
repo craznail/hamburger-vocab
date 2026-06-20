@@ -99,10 +99,10 @@ function speak(event) {
           </button>
         </div>
 
-        <p v-if="!revealed" class="flashcard-reveal-hint">点击卡片查看答案</p>
+        <div class="flashcard-answer-slot">
+          <p class="flashcard-reveal-hint" :class="{ 'flashcard-reveal-hint-hidden': revealed }">点击卡片查看答案</p>
 
-        <transition name="reveal">
-          <div v-if="revealed" class="flashcard-answer">
+          <div class="flashcard-answer" :class="{ 'flashcard-answer-revealed': revealed }" aria-hidden="!revealed">
             <div class="flashcard-inflections">
               <p
                 v-for="(inflection, index) in card.inflections"
@@ -121,7 +121,7 @@ function speak(event) {
             </p>
             <p v-else class="flashcard-definition flashcard-definition-empty">暂无释义</p>
           </div>
-        </transition>
+        </div>
 
         <p v-if="ttsState === 'unavailable'" class="flashcard-tts-note">发音不可用，请检查网络或 TTS 设置</p>
       </div>
@@ -311,16 +311,42 @@ function speak(event) {
 }
 
 .flashcard-reveal-hint {
-  margin: 1rem 0 0;
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
   color: #8fa0be;
   font-size: 0.76rem;
   font-weight: 700;
   line-height: 1.5;
+  padding-top: 1rem;
+  transition: opacity 0.18s ease-out;
+}
+
+.flashcard-reveal-hint-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.flashcard-answer-slot {
+  position: relative;
+  width: 100%;
+  margin-top: 1rem;
 }
 
 .flashcard-answer {
+  position: relative;
   width: 100%;
-  margin-top: 1rem;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.24s ease-out;
+}
+
+.flashcard-answer-revealed {
+  opacity: 1;
+  visibility: visible;
 }
 
 .flashcard-inflections {
@@ -366,20 +392,6 @@ function speak(event) {
 
 .flashcard-definition-empty {
   color: #95a5c1;
-}
-
-.reveal-enter-active {
-  transition: all 0.24s ease-out;
-}
-
-.reveal-leave-active {
-  transition: all 0.18s ease-in;
-}
-
-.reveal-enter-from,
-.reveal-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
 }
 
 .flashcard-rate-grid {
