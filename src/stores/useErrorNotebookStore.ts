@@ -31,6 +31,13 @@ export const useErrorNotebookStore = defineStore('errorNotebook', () => {
         syncError.value = ''
       } catch (e) {
         syncError.value = e instanceof Error ? e.message : String(e)
+        // A failed sync often means the credentials are gone (expired/revoked).
+        // Re-read the auth status so the UI drops back to the login screen.
+        try {
+          auth.value = await authApi.getAuthStatus()
+        } catch {
+          /* keep the cached status if the status call itself fails */
+        }
         throw e
       } finally {
         inflightSync = null

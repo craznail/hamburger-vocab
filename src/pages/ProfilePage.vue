@@ -48,7 +48,7 @@ const studyRows = [
 ]
 
 const settingRows = [
-  { label: '同步与服务端', hint: '手动同步数据，管理服务', icon: syncIcon, route: 'Settings' },
+  { label: '同步与服务端', hint: '手动同步数据，管理服务', icon: syncIcon, route: 'SyncServer' },
   { label: '学习设置', hint: '卡片显示、复习顺序等', icon: settingsIcon, route: 'Settings' },
   { label: 'TTS 发音设置', hint: '语速、音色与发音引擎', icon: ttsIcon, route: 'Settings' },
   { label: '关于应用', hint: '版本信息与使用说明', icon: aboutIcon, route: 'Settings' },

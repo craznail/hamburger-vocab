@@ -362,6 +362,26 @@ pub fn set_sync_value(conn: &Connection, key: &str, value: &str) -> Result<(), r
     Ok(())
 }
 
+pub fn delete_sync_value(conn: &Connection, key: &str) -> Result<(), rusqlite::Error> {
+    conn.execute("DELETE FROM sync_state WHERE key = ?1", params![key])?;
+    Ok(())
+}
+
+/// Drops the locally stored mobile credentials so the client returns to the
+/// logged-out state. The server URL and last-sync cursor are preserved so the
+/// user does not have to retype the address when reconnecting.
+pub fn clear_auth(conn: &Connection) -> Result<(), rusqlite::Error> {
+    for key in [
+        "access_token",
+        "refresh_token",
+        "access_expires_at",
+        "mobile_user",
+    ] {
+        delete_sync_value(conn, key)?;
+    }
+    Ok(())
+}
+
 pub fn pending_review_logs_json(
     conn: &Connection,
 ) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
@@ -388,6 +408,18 @@ pub fn pending_review_logs_json(
 pub fn mark_review_logs_synced(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute(
         "UPDATE error_review_logs SET sync_status = 'synced' WHERE sync_status = 'pending_sync'",
+        [],
+    )?;
+    Ok(())
+}
+
+/// After a successful push, all locally-edited error items that have already
+/// been synced to the server (i.e. they carry a remote_id) can be marked as
+/// synced. Items without a remote_id stay pending — they must be uploaded
+/// through the analyze/upload flow first.
+pub fn mark_pushed_error_items_synced(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "UPDATE error_items SET sync_status = 'synced' WHERE sync_status = 'pending_sync' AND remote_id IS NOT NULL",
         [],
     )?;
     Ok(())

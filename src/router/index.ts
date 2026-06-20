@@ -38,6 +38,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/SettingsPage.vue'),
   },
   {
+    path: '/sync-server',
+    name: 'SyncServer',
+    component: () => import('../pages/SyncServerPage.vue'),
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('../pages/ProfilePage.vue'),

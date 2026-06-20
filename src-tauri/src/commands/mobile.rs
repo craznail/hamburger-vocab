@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -21,6 +22,14 @@ struct MobileLoginResponse {
     user: serde_json::Value,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MobileRefreshResponse {
+    access_token: String,
+    refresh_token: String,
+    expires_in: i64,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthStatus {
@@ -31,6 +40,54 @@ pub struct AuthStatus {
 
 fn normalize_server_url(value: &str) -> String {
     value.trim().trim_end_matches('/').to_string()
+}
+
+/// Convert a relative TTL (seconds from now) into an absolute expiry timestamp
+/// stored as an RFC3339 string. Refreshed alongside the tokens on every login
+/// and every successful token refresh.
+fn absolute_expiry(expires_in: i64) -> String {
+    let mut expiry = Utc::now() + chrono::Duration::seconds(expires_in);
+    // Refresh a little before the real expiry to avoid edge races.
+    expiry = expiry - chrono::Duration::seconds(30);
+    expiry.to_rfc3339()
+}
+
+/// Returns true when the stored access token has not expired yet.
+fn is_access_token_valid(conn: &rusqlite::Connection) -> Result<bool, String> {
+    let access = crate::db::error_repo::get_sync_value(conn, "access_token")
+        .map_err(|e| e.to_string())?;
+    if access.is_none() {
+        return Ok(false);
+    }
+    let expires_at = crate::db::error_repo::get_sync_value(conn, "access_expires_at")
+        .map_err(|e| e.to_string())?;
+    let Some(expires_at) = expires_at else {
+        // Legacy credentials without an expiry marker: treat as valid so we
+        // don't surprise-upgrade users who logged in before this change.
+        return Ok(true);
+    };
+    let Ok(parsed) = DateTime::parse_from_rfc3339(&expires_at) else {
+        return Ok(true);
+    };
+    Ok(parsed.with_timezone(&Utc) > Utc::now())
+}
+
+fn build_auth_status(conn: &rusqlite::Connection) -> Result<AuthStatus, String> {
+    let server_url =
+        crate::db::error_repo::get_sync_value(conn, "server_url").map_err(|e| e.to_string())?;
+    let logged_in = is_access_token_valid(conn)?;
+    let user = if logged_in {
+        crate::db::error_repo::get_sync_value(conn, "mobile_user")
+            .map_err(|e| e.to_string())?
+            .and_then(|value| serde_json::from_str(&value).ok())
+    } else {
+        None
+    };
+    Ok(AuthStatus {
+        logged_in,
+        server_url,
+        user,
+    })
 }
 
 #[tauri::command]
@@ -73,8 +130,8 @@ pub async fn mobile_login(
         .map_err(|e| e.to_string())?;
     crate::db::error_repo::set_sync_value(
         &conn,
-        "access_expires_in",
-        &login.expires_in.to_string(),
+        "access_expires_at",
+        &absolute_expiry(login.expires_in),
     )
     .map_err(|e| e.to_string())?;
     crate::db::error_repo::set_sync_value(&conn, "mobile_user", &login.user.to_string())
@@ -87,19 +144,93 @@ pub async fn mobile_login(
     })
 }
 
+/// Exchanges the stored refresh token for a fresh access/refresh token pair.
+/// On any failure (missing token, network error, 401) the local credentials are
+/// cleared so the UI falls back to the login screen.
+#[tauri::command]
+pub async fn refresh_access_token(
+    state: State<'_, DbState>,
+    client_state: State<'_, HttpClientState>,
+) -> Result<AuthStatus, String> {
+    refresh_access_token_inner(&state, &client_state.client).await?;
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    build_auth_status(&conn)
+}
+
+/// Shared refresh implementation. Persists the new tokens and returns the
+/// server URL plus the refreshed access token so callers can immediately retry
+/// the request that triggered the refresh.
+pub async fn refresh_access_token_inner(
+    state: &State<'_, DbState>,
+    client: &reqwest::Client,
+) -> Result<(String, String), String> {
+    let (server_url, refresh_token) = {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        let server_url =
+            crate::db::error_repo::get_sync_value(&conn, "server_url").map_err(|e| e.to_string())?;
+        let refresh_token = crate::db::error_repo::get_sync_value(&conn, "refresh_token")
+            .map_err(|e| e.to_string())?;
+        (server_url, refresh_token)
+    };
+
+    let (Some(server_url), Some(refresh_token)) = (server_url, refresh_token) else {
+        clear_local_auth(state)?;
+        return Err("登录已过期，请重新登录".into());
+    };
+
+    let response = client
+        .post(format!("{server_url}/api/mobile/auth/refresh"))
+        .json(&serde_json::json!({ "refreshToken": refresh_token }))
+        .send()
+        .await;
+
+    let response = match response {
+        Ok(resp) if resp.status().is_success() => resp,
+        _ => {
+            clear_local_auth(state)?;
+            return Err("登录已过期，请重新登录".into());
+        }
+    };
+
+    let refreshed = response
+        .json::<MobileRefreshResponse>()
+        .await
+        .map_err(|e| {
+            let _ = clear_local_auth(state);
+            format!("刷新登录失败: {e}")
+        })?;
+
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    crate::db::error_repo::set_sync_value(&conn, "access_token", &refreshed.access_token)
+        .map_err(|e| e.to_string())?;
+    crate::db::error_repo::set_sync_value(&conn, "refresh_token", &refreshed.refresh_token)
+        .map_err(|e| e.to_string())?;
+    crate::db::error_repo::set_sync_value(
+        &conn,
+        "access_expires_at",
+        &absolute_expiry(refreshed.expires_in),
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok((server_url, refreshed.access_token))
+}
+
+fn clear_local_auth(state: &State<'_, DbState>) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    crate::db::error_repo::clear_auth(&conn).map_err(|e| e.to_string())
+}
+
+/// Discards the locally stored credentials. The server uses stateless JWTs
+/// without a revoke endpoint, so client-side deletion is all logout needs.
+#[tauri::command]
+pub fn mobile_logout(state: State<'_, DbState>) -> Result<AuthStatus, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    crate::db::error_repo::clear_auth(&conn).map_err(|e| e.to_string())?;
+    build_auth_status(&conn)
+}
+
 #[tauri::command]
 pub fn get_auth_status(state: State<'_, DbState>) -> Result<AuthStatus, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let access =
-        crate::db::error_repo::get_sync_value(&conn, "access_token").map_err(|e| e.to_string())?;
-    let server_url =
-        crate::db::error_repo::get_sync_value(&conn, "server_url").map_err(|e| e.to_string())?;
-    let user = crate::db::error_repo::get_sync_value(&conn, "mobile_user")
-        .map_err(|e| e.to_string())?
-        .and_then(|value| serde_json::from_str(&value).ok());
-    Ok(AuthStatus {
-        logged_in: access.is_some(),
-        server_url,
-        user,
-    })
+    build_auth_status(&conn)
 }

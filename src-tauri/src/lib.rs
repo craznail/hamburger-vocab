@@ -72,6 +72,8 @@ pub fn run() {
             commands::error_item::sync_error_items,
             // Mobile auth / sync commands
             commands::mobile::mobile_login,
+            commands::mobile::refresh_access_token,
+            commands::mobile::mobile_logout,
             commands::mobile::get_auth_status,
             // Import commands (new integrated commands)
             commands::import::rate_card,

@@ -78,6 +78,42 @@ fn read_token_and_server(conn: &rusqlite::Connection) -> Result<(String, String)
     Ok((server_url, access_token))
 }
 
+/// Whether the locally stored access token should be considered expired and
+/// refreshed before the next authenticated request.
+fn access_token_needs_refresh(conn: &rusqlite::Connection) -> Result<bool, String> {
+    let Some(expires_at) =
+        crate::db::error_repo::get_sync_value(conn, "access_expires_at").map_err(|e| e.to_string())?
+    else {
+        return Ok(false);
+    };
+    let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(&expires_at) else {
+        return Ok(false);
+    };
+    Ok(parsed.with_timezone(&chrono::Utc) <= chrono::Utc::now())
+}
+
+/// Returns a valid `(server_url, access_token)` pair, refreshing the tokens
+/// first when the stored access token has expired. On refresh failure the
+/// local credentials are cleared and an error is surfaced so the UI can prompt
+/// for a fresh login.
+async fn ensure_valid_access_token(
+    state: &State<'_, DbState>,
+    client_state: &State<'_, HttpClientState>,
+) -> Result<(String, String), String> {
+    let needs_refresh = {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        access_token_needs_refresh(&conn)?
+    };
+
+    if needs_refresh {
+        return crate::commands::mobile::refresh_access_token_inner(state, &client_state.client)
+            .await;
+    }
+
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    read_token_and_server(&conn)
+}
+
 #[tauri::command]
 pub fn create_error_draft(
     app_handle: tauri::AppHandle,
@@ -158,19 +194,19 @@ pub async fn analyze_error_draft(
     state: State<'_, DbState>,
     client_state: State<'_, HttpClientState>,
 ) -> Result<ErrorItem, String> {
-    let (item, server_url, access_token) = {
+    let item = {
         let conn = state.conn.lock().map_err(|e| e.to_string())?;
         let item = crate::db::error_repo::get_error_item(&conn, &id)
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "错题草稿不存在".to_string())?;
-        let (server_url, access_token) = read_token_and_server(&conn)?;
         conn.execute(
             "UPDATE error_items SET sync_status = 'analyzing', updated_at = ?1 WHERE id = ?2",
             rusqlite::params![crate::db::now_str(), id],
         )
         .map_err(|e| e.to_string())?;
-        (item, server_url, access_token)
+        item
     };
+    let (server_url, access_token) = ensure_valid_access_token(&state, &client_state).await?;
 
     let local_path = item
         .local_image_path
@@ -249,16 +285,19 @@ pub async fn sync_error_items(
     state: State<'_, DbState>,
     client_state: State<'_, HttpClientState>,
 ) -> Result<serde_json::Value, String> {
-    let (server_url, access_token, review_logs, since) = {
+    let (review_logs, since) = {
         let conn = state.conn.lock().map_err(|e| e.to_string())?;
-        let (server_url, access_token) = read_token_and_server(&conn)?;
         let review_logs =
             crate::db::error_repo::pending_review_logs_json(&conn).map_err(|e| e.to_string())?;
         let since = crate::db::error_repo::get_sync_value(&conn, "last_error_sync_at")
             .map_err(|e| e.to_string())?
             .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".into());
-        (server_url, access_token, review_logs, since)
+        (review_logs, since)
     };
+
+    // Resolve a valid token up front (refreshing if the stored one expired).
+    let (mut server_url, mut access_token) =
+        ensure_valid_access_token(&state, &client_state).await?;
 
     let push = client_state
         .client
@@ -272,6 +311,31 @@ pub async fn sync_error_items(
         .send()
         .await
         .map_err(|e| format!("同步推送失败: {e}"))?;
+    let push = if push.status() == reqwest::StatusCode::UNAUTHORIZED {
+        // Token may have expired between the preflight check and the request.
+        // Refresh once and retry before giving up.
+        let refreshed = crate::commands::mobile::refresh_access_token_inner(
+            &state,
+            &client_state.client,
+        )
+        .await?;
+        server_url = refreshed.0;
+        access_token = refreshed.1;
+        client_state
+            .client
+            .post(format!("{server_url}/api/mobile/sync/push"))
+            .bearer_auth(&access_token)
+            .json(&serde_json::json!({
+                "errorItems": [],
+                "reviewLogs": review_logs,
+                "deletedIds": [],
+            }))
+            .send()
+            .await
+            .map_err(|e| format!("同步推送失败: {e}"))?
+    } else {
+        push
+    };
     if !push.status().is_success() {
         return Err(format!("同步推送失败: {}", push.status()));
     }
@@ -309,6 +373,7 @@ pub async fn sync_error_items(
             .map_err(|e| e.to_string())?;
     }
     crate::db::error_repo::mark_review_logs_synced(&conn).map_err(|e| e.to_string())?;
+    crate::db::error_repo::mark_pushed_error_items_synced(&conn).map_err(|e| e.to_string())?;
     crate::db::error_repo::set_sync_value(&conn, "last_error_sync_at", &server_time)
         .map_err(|e| e.to_string())?;
     Ok(payload)

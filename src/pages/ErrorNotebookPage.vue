@@ -6,7 +6,6 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import {
   AlertCircle,
   ArrowRight,
-  Cloud,
   ImagePlus,
   Loader,
   NotebookPen,
@@ -16,7 +15,6 @@ import {
 } from 'lucide-vue-next'
 import BottomNav from '../components/BottomNav.vue'
 import * as errorApi from '../api/errorItem'
-import * as authApi from '../api/auth'
 import { useErrorNotebookStore } from '../stores/useErrorNotebookStore'
 import { getAppSettings } from '../platform/appSettings'
 
@@ -24,16 +22,10 @@ const router = useRouter()
 const notebookStore = useErrorNotebookStore()
 const { items, auth, loading, syncError, dueCount, pendingCount, initialized } = storeToRefs(notebookStore)
 const syncMessage = ref('')
-const showLoginForm = ref(false)
 const failedImages = ref(new Set<string>())
 const errorNotebookHeroArt = new URL('../assets/hero/error-notebook-hero-bg.png', import.meta.url).href
 const appSettings = getAppSettings()
 const useMockData = computed(() => appSettings.errorNotebook?.enableMockDataFallback === true)
-const loginForm = ref({
-  serverUrl: localStorage.getItem('wrongNotebookServerUrl') || 'http://localhost:3000',
-  email: '',
-  password: '',
-})
 
 const mockItems = computed<errorApi.ErrorItem[]>(() => ([
   {
@@ -163,19 +155,6 @@ onMounted(() => {
   void notebookStore.ensureFresh()
 })
 
-async function login() {
-  if (useMockData.value) {
-    syncMessage.value = '当前为调试假数据模式，请到设置页关闭后再连接真实服务'
-    return
-  }
-  syncMessage.value = ''
-  auth.value = await authApi.login(loginForm.value.serverUrl, loginForm.value.email, loginForm.value.password)
-  localStorage.setItem('wrongNotebookServerUrl', loginForm.value.serverUrl)
-  syncMessage.value = '已登录远程服务端'
-  notebookStore.invalidate()
-  void notebookStore.refresh(true)
-}
-
 async function sync() {
   if (useMockData.value) {
     syncMessage.value = '当前为调试假数据模式，请到设置页关闭后再同步真实数据'
@@ -267,26 +246,14 @@ function getStatusText(item: errorApi.ErrorItem) {
         </div>
       </section>
 
-      <section v-if="!displayAuth.loggedIn" class="error-login-card">
-        <div class="error-login-head">
-          <div class="error-card-head">
-            <Cloud class="h-5 w-5 text-[#2f7cff]" />
-            <div>
-              <h2 class="error-section-title">连接服务端</h2>
-              <p class="error-panel-hint">需要 AI 分析或同步时再连接就行</p>
-            </div>
-          </div>
-          <button class="error-login-toggle" type="button" @click="showLoginForm = !showLoginForm">
-            {{ showLoginForm ? '收起' : '连接' }}
-          </button>
+      <section v-if="!displayAuth.loggedIn && !useMockData" class="error-connect-hint">
+        <div class="error-connect-copy">
+          <p class="error-connect-title">服务端未连接</p>
+          <p class="error-connect-text">要使用 AI 分析或同步错题，请前往 我的-同步与服务端 连接。</p>
         </div>
-
-        <div v-if="showLoginForm" class="error-form-grid">
-          <input v-model="loginForm.serverUrl" class="error-input" placeholder="服务端地址，例如 http://localhost:3000" />
-          <input v-model="loginForm.email" class="error-input" placeholder="邮箱" />
-          <input v-model="loginForm.password" type="password" class="error-input" placeholder="密码" />
-          <button class="error-submit-button" type="button" @click="login">登录并启用 AI 分析</button>
-        </div>
+        <button class="error-connect-action" type="button" @click="router.push({ name: 'SyncServer' })">
+          去连接
+        </button>
       </section>
 
       <p v-if="statusMessage" class="error-message">{{ statusMessage }}</p>
@@ -404,8 +371,8 @@ function getStatusText(item: errorApi.ErrorItem) {
 }
 
 .error-overview-card,
-.error-login-card,
-.error-list-panel {
+.error-list-panel,
+.error-connect-hint {
   overflow: hidden;
   border: 1px solid rgba(214, 227, 255, 0.95);
   border-radius: 1.55rem;
@@ -520,8 +487,7 @@ function getStatusText(item: errorApi.ErrorItem) {
 }
 
 .error-primary-button,
-.error-secondary-button,
-.error-submit-button {
+.error-secondary-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -531,15 +497,10 @@ function getStatusText(item: errorApi.ErrorItem) {
   border-radius: 1.05rem;
   font-size: 0.9rem;
   font-weight: 900;
-}
-
-.error-primary-button,
-.error-secondary-button {
   padding: 0 1.1rem;
 }
 
-.error-primary-button,
-.error-submit-button {
+.error-primary-button {
   background: linear-gradient(135deg, #4a80ff 0%, #245dff 100%);
   color: white;
   box-shadow: 0 14px 26px rgba(31, 110, 255, 0.24);
@@ -551,36 +512,47 @@ function getStatusText(item: errorApi.ErrorItem) {
   color: #1d2e62;
 }
 
-.error-login-card {
+.error-connect-hint {
   margin-top: 1rem;
-  padding: 1rem 1.05rem;
-}
-
-.error-login-head {
+  padding: 0.92rem 1.05rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
 }
 
-.error-card-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.55rem;
+.error-connect-copy {
+  min-width: 0;
 }
 
-.error-login-toggle {
+.error-connect-title {
+  margin: 0;
+  font-size: 0.94rem;
+  font-weight: 900;
+  color: #1a2b57;
+}
+
+.error-connect-text {
+  margin: 0.2rem 0 0;
+  color: #8ea0c6;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.error-connect-action {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 1.95rem;
-  padding: 0 0.78rem;
-  border: 1px solid rgba(205, 219, 244, 0.95);
+  min-height: 2.1rem;
+  padding: 0 1rem;
+  border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #4f82df;
-  font-size: 0.76rem;
-  font-weight: 800;
+  background: linear-gradient(135deg, #4a80ff 0%, #245dff 100%);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 900;
+  box-shadow: 0 12px 22px rgba(31, 110, 255, 0.2);
 }
 
 .error-section-title {
@@ -588,29 +560,6 @@ function getStatusText(item: errorApi.ErrorItem) {
   font-size: 1rem;
   font-weight: 900;
   color: #1a2b57;
-}
-
-.error-panel-hint {
-  margin: 0.18rem 0 0;
-  color: #8ea0c6;
-  font-size: 0.78rem;
-}
-
-.error-form-grid {
-  display: grid;
-  gap: 0.75rem;
-  margin-top: 0.85rem;
-}
-
-.error-input {
-  width: 100%;
-  height: 2.9rem;
-  border: 1px solid rgba(199, 216, 249, 0.9);
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.88);
-  padding: 0 1rem;
-  color: #1c2b61;
-  outline: none;
 }
 
 .error-message {
@@ -803,7 +752,7 @@ function getStatusText(item: errorApi.ErrorItem) {
   }
 
   .error-overview-card,
-  .error-login-card,
+  .error-connect-hint,
   .error-list-panel {
     border-radius: 1.7rem;
   }
