@@ -1,6 +1,7 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use tauri::{Manager, State};
@@ -81,8 +82,8 @@ fn read_token_and_server(conn: &rusqlite::Connection) -> Result<(String, String)
 /// Whether the locally stored access token should be considered expired and
 /// refreshed before the next authenticated request.
 fn access_token_needs_refresh(conn: &rusqlite::Connection) -> Result<bool, String> {
-    let Some(expires_at) =
-        crate::db::error_repo::get_sync_value(conn, "access_expires_at").map_err(|e| e.to_string())?
+    let Some(expires_at) = crate::db::error_repo::get_sync_value(conn, "access_expires_at")
+        .map_err(|e| e.to_string())?
     else {
         return Ok(false);
     };
@@ -285,51 +286,46 @@ pub async fn sync_error_items(
     state: State<'_, DbState>,
     client_state: State<'_, HttpClientState>,
 ) -> Result<serde_json::Value, String> {
-    let (review_logs, since) = {
+    let (batch, since) = {
         let conn = state.conn.lock().map_err(|e| e.to_string())?;
-        let review_logs =
-            crate::db::error_repo::pending_review_logs_json(&conn).map_err(|e| e.to_string())?;
+        let batch = crate::db::error_repo::pending_sync_batch(&conn).map_err(|e| e.to_string())?;
         let since = crate::db::error_repo::get_sync_value(&conn, "last_error_sync_at")
             .map_err(|e| e.to_string())?
             .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".into());
-        (review_logs, since)
+        (batch, since)
     };
 
     // Resolve a valid token up front (refreshing if the stored one expired).
     let (mut server_url, mut access_token) =
         ensure_valid_access_token(&state, &client_state).await?;
 
+    let push_body = serde_json::json!({
+        "errorItems": &batch.error_items,
+        "reviewLogs": &batch.review_logs,
+        "deletedIds": &batch.deleted_ids,
+    });
+
     let push = client_state
         .client
         .post(format!("{server_url}/api/mobile/sync/push"))
         .bearer_auth(&access_token)
-        .json(&serde_json::json!({
-            "errorItems": [],
-            "reviewLogs": review_logs,
-            "deletedIds": [],
-        }))
+        .json(&push_body)
         .send()
         .await
         .map_err(|e| format!("同步推送失败: {e}"))?;
     let push = if push.status() == reqwest::StatusCode::UNAUTHORIZED {
         // Token may have expired between the preflight check and the request.
         // Refresh once and retry before giving up.
-        let refreshed = crate::commands::mobile::refresh_access_token_inner(
-            &state,
-            &client_state.client,
-        )
-        .await?;
+        let refreshed =
+            crate::commands::mobile::refresh_access_token_inner(&state, &client_state.client)
+                .await?;
         server_url = refreshed.0;
         access_token = refreshed.1;
         client_state
             .client
             .post(format!("{server_url}/api/mobile/sync/push"))
             .bearer_auth(&access_token)
-            .json(&serde_json::json!({
-                "errorItems": [],
-                "reviewLogs": review_logs,
-                "deletedIds": [],
-            }))
+            .json(&push_body)
             .send()
             .await
             .map_err(|e| format!("同步推送失败: {e}"))?
@@ -339,15 +335,90 @@ pub async fn sync_error_items(
     if !push.status().is_success() {
         return Err(format!("同步推送失败: {}", push.status()));
     }
+    let push_payload = push
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("同步推送响应解析失败: {e}"))?;
+    let accepted_error_ids: HashSet<String> = push_payload
+        .get("acceptedErrorItemIds")
+        .and_then(|value| value.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.as_str().map(ToString::to_string))
+        .collect();
+    let accepted_review_ids: HashSet<String> = push_payload
+        .get("acceptedReviewLogIds")
+        .and_then(|value| value.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.as_str().map(ToString::to_string))
+        .collect();
+    let accepted_deleted_ids: HashSet<String> = push_payload
+        .get("acceptedDeletedIds")
+        .and_then(|value| value.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.as_str().map(ToString::to_string))
+        .collect();
+    let accepted_error_revisions: Vec<_> = batch
+        .error_item_revisions
+        .iter()
+        .filter(|revision| accepted_error_ids.contains(&revision.id))
+        .cloned()
+        .collect();
+    let accepted_review_log_ids: Vec<_> = batch
+        .review_log_ids
+        .iter()
+        .filter(|id| accepted_review_ids.contains(*id))
+        .cloned()
+        .collect();
+    let accepted_deletion_revisions: Vec<_> = batch
+        .deleted_ids
+        .iter()
+        .zip(batch.deletion_revisions.iter())
+        .filter(|(remote_id, _)| accepted_deleted_ids.contains(*remote_id))
+        .map(|(_, revision)| revision.clone())
+        .collect();
+
+    // A successful push is an independent durable acknowledgement. Commit it
+    // before pulling so a later pull/network failure does not resend logs.
+    {
+        let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        crate::db::error_repo::mark_review_logs_synced(&tx, &accepted_review_log_ids)
+            .map_err(|e| e.to_string())?;
+        crate::db::error_repo::mark_pushed_error_items_synced(&tx, &accepted_error_revisions)
+            .map_err(|e| e.to_string())?;
+        crate::db::error_repo::mark_pushed_deletions_synced(&tx, &accepted_deletion_revisions)
+            .map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
+    }
 
     let pull = client_state
         .client
         .get(format!("{server_url}/api/mobile/sync/pull"))
-        .query(&[("since", since)])
+        .query(&[("since", since.as_str())])
         .bearer_auth(&access_token)
         .send()
         .await
         .map_err(|e| format!("同步拉取失败: {e}"))?;
+    let pull = if pull.status() == reqwest::StatusCode::UNAUTHORIZED {
+        let refreshed =
+            crate::commands::mobile::refresh_access_token_inner(&state, &client_state.client)
+                .await?;
+        server_url = refreshed.0;
+        access_token = refreshed.1;
+        client_state
+            .client
+            .get(format!("{server_url}/api/mobile/sync/pull"))
+            .query(&[("since", since.as_str())])
+            .bearer_auth(&access_token)
+            .send()
+            .await
+            .map_err(|e| format!("同步拉取失败: {e}"))?
+    } else {
+        pull
+    };
     if !pull.status().is_success() {
         return Err(format!("同步拉取失败: {}", pull.status()));
     }
@@ -358,23 +429,25 @@ pub async fn sync_error_items(
     let server_time = payload
         .get("serverTime")
         .and_then(|v| v.as_str())
-        .unwrap_or("1970-01-01T00:00:00.000Z")
+        .unwrap_or(&since)
         .to_string();
 
-    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    // Apply a pull and its cursor atomically. If any row is invalid, neither
+    // partial remote data nor an advanced cursor is committed.
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
     if let Some(items) = payload.get("errorItems").and_then(|v| v.as_array()) {
         for item in items {
-            crate::db::error_repo::upsert_pulled_error_item(&conn, item)
+            crate::db::error_repo::upsert_pulled_error_item(&tx, item)
                 .map_err(|e| e.to_string())?;
         }
     }
     if let Some(deleted_ids) = payload.get("deletedIds").and_then(|v| v.as_array()) {
-        crate::db::error_repo::apply_pulled_deletions(&conn, deleted_ids)
+        crate::db::error_repo::apply_pulled_deletions(&tx, deleted_ids)
             .map_err(|e| e.to_string())?;
     }
-    crate::db::error_repo::mark_review_logs_synced(&conn).map_err(|e| e.to_string())?;
-    crate::db::error_repo::mark_pushed_error_items_synced(&conn).map_err(|e| e.to_string())?;
-    crate::db::error_repo::set_sync_value(&conn, "last_error_sync_at", &server_time)
+    crate::db::error_repo::set_sync_value(&tx, "last_error_sync_at", &server_time)
         .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(payload)
 }

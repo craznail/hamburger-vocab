@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS error_items (
     next_review         TEXT NOT NULL DEFAULT (date('now')),
     sync_status         TEXT NOT NULL DEFAULT 'local_draft',
     version             INTEGER NOT NULL DEFAULT 0,
+    local_revision      INTEGER NOT NULL DEFAULT 0,
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at          TEXT NOT NULL DEFAULT (datetime('now')),
     deleted_at          TEXT DEFAULT NULL,
@@ -143,5 +144,41 @@ pub fn run(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
         )?;
     }
 
+    let has_local_revision = conn
+        .prepare("PRAGMA table_info(error_items)")?
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(Result::ok)
+        .any(|name| name == "local_revision");
+
+    if !has_local_revision {
+        conn.execute(
+            "ALTER TABLE error_items ADD COLUMN local_revision INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn adds_local_revision_to_existing_error_items_table() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let legacy_ddl = DDL.replace("    local_revision      INTEGER NOT NULL DEFAULT 0,\n", "");
+        conn.execute_batch(&legacy_ddl).unwrap();
+
+        run(&conn).unwrap();
+
+        let has_local_revision = conn
+            .prepare("PRAGMA table_info(error_items)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|name| name == "local_revision");
+        assert!(has_local_revision);
+    }
 }

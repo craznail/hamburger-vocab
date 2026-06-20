@@ -3,6 +3,22 @@ use rusqlite::{params, Connection};
 use super::models::*;
 use super::{generate_id, now_str, today_str};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingRevision {
+    pub id: String,
+    pub local_revision: i64,
+}
+
+#[derive(Debug, Default)]
+pub struct PendingSyncBatch {
+    pub error_items: Vec<serde_json::Value>,
+    pub error_item_revisions: Vec<PendingRevision>,
+    pub review_logs: Vec<serde_json::Value>,
+    pub review_log_ids: Vec<String>,
+    pub deleted_ids: Vec<String>,
+    pub deletion_revisions: Vec<PendingRevision>,
+}
+
 fn row_to_error_item(row: &rusqlite::Row<'_>) -> rusqlite::Result<ErrorItem> {
     Ok(ErrorItem {
         id: row.get(0)?,
@@ -274,6 +290,7 @@ pub fn update_error_item_text(
              user_notes = COALESCE(?5, user_notes),
              knowledge_points = COALESCE(?6, knowledge_points),
              sync_status = CASE WHEN remote_id IS NULL THEN sync_status ELSE 'pending_sync' END,
+             local_revision = local_revision + 1,
              updated_at = ?7
          WHERE id = ?8",
         params![
@@ -313,10 +330,18 @@ pub fn rate_error_item(
     conn.execute(
         "UPDATE error_items
          SET ef = ?1, interval = ?2, repetitions = ?3, next_review = ?4,
-             mastery_level = ?5, sync_status = CASE WHEN remote_id IS NULL THEN sync_status ELSE 'pending_sync' END,
+             mastery_level = ?5,
              updated_at = ?6
          WHERE id = ?7",
-        params![result.ef, result.interval, result.repetitions, result.next_review, mastery_level, now_str(), id],
+        params![
+            result.ef,
+            result.interval,
+            result.repetitions,
+            result.next_review,
+            mastery_level,
+            now_str(),
+            id
+        ],
     )?;
     conn.execute(
         "INSERT INTO error_review_logs
@@ -382,46 +407,137 @@ pub fn clear_auth(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-pub fn pending_review_logs_json(
-    conn: &Connection,
-) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
-    let mut stmt = conn.prepare(
+pub fn pending_sync_batch(conn: &Connection) -> Result<PendingSyncBatch, rusqlite::Error> {
+    let mut batch = PendingSyncBatch::default();
+
+    let mut item_stmt = conn.prepare(
+        "SELECT id, remote_id, question_text, answer_text, analysis, wrong_answer_text,
+                mistake_analysis, mistake_status, knowledge_points, user_notes, mastery_level,
+                ef, interval, repetitions, next_review, version, updated_at, local_revision
+         FROM error_items
+         WHERE sync_status = 'pending_sync'
+           AND remote_id IS NOT NULL
+           AND deleted_at IS NULL",
+    )?;
+    let item_rows = item_stmt.query_map([], |row| {
+        let id = row.get::<_, String>(0)?;
+        let updated_at = row.get::<_, String>(16)?;
+        let local_revision = row.get::<_, i64>(17)?;
+        let knowledge_points = serde_json::from_str::<serde_json::Value>(&row.get::<_, String>(8)?)
+            .unwrap_or_else(|_| serde_json::json!([]));
+        let payload = serde_json::json!({
+            "localId": id,
+            "remoteId": row.get::<_, String>(1)?,
+            "questionText": row.get::<_, Option<String>>(2)?,
+            "answerText": row.get::<_, Option<String>>(3)?,
+            "analysis": row.get::<_, Option<String>>(4)?,
+            "wrongAnswerText": row.get::<_, Option<String>>(5)?,
+            "mistakeAnalysis": row.get::<_, Option<String>>(6)?,
+            "mistakeStatus": row.get::<_, Option<String>>(7)?,
+            "knowledgePoints": knowledge_points,
+            "userNotes": row.get::<_, Option<String>>(9)?,
+            "masteryLevel": row.get::<_, i64>(10)?,
+            "ef": row.get::<_, f64>(11)?,
+            "interval": row.get::<_, i64>(12)?,
+            "repetitions": row.get::<_, i64>(13)?,
+            "nextReviewAt": row.get::<_, String>(14)?,
+            "version": row.get::<_, i64>(15)?,
+            "updatedAt": updated_at,
+        });
+        Ok((payload, PendingRevision { id, local_revision }))
+    })?;
+    for row in item_rows {
+        let (payload, revision) = row?;
+        batch.error_items.push(payload);
+        batch.error_item_revisions.push(revision);
+    }
+
+    let mut review_stmt = conn.prepare(
         "SELECT l.id, e.remote_id, l.quality, l.reviewed_at, l.duration_seconds, l.mastery_level, l.next_review
          FROM error_review_logs l
          JOIN error_items e ON e.id = l.error_item_id
          WHERE l.sync_status = 'pending_sync' AND e.remote_id IS NOT NULL",
     )?;
-    let rows = stmt.query_map([], |row| {
-        Ok(serde_json::json!({
-            "localId": row.get::<_, String>(0)?,
+    let review_rows = review_stmt.query_map([], |row| {
+        let id = row.get::<_, String>(0)?;
+        let payload = serde_json::json!({
+            "localId": id,
             "remoteErrorItemId": row.get::<_, String>(1)?,
             "quality": row.get::<_, i64>(2)?,
             "reviewedAt": row.get::<_, String>(3)?,
             "durationSeconds": row.get::<_, i64>(4)?,
             "masteryLevel": row.get::<_, i64>(5)?,
             "nextReviewAt": row.get::<_, String>(6)?,
-        }))
+        });
+        Ok((id, payload))
     })?;
-    rows.collect()
+    for row in review_rows {
+        let (id, payload) = row?;
+        batch.review_log_ids.push(id);
+        batch.review_logs.push(payload);
+    }
+
+    let mut deletion_stmt = conn.prepare(
+        "SELECT id, remote_id, local_revision
+         FROM error_items
+         WHERE sync_status = 'deleted'
+           AND remote_id IS NOT NULL
+           AND deleted_at IS NOT NULL",
+    )?;
+    let deletion_rows = deletion_stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(1)?,
+            PendingRevision {
+                id: row.get(0)?,
+                local_revision: row.get(2)?,
+            },
+        ))
+    })?;
+    for row in deletion_rows {
+        let (remote_id, revision) = row?;
+        batch.deleted_ids.push(remote_id);
+        batch.deletion_revisions.push(revision);
+    }
+
+    Ok(batch)
 }
 
-pub fn mark_review_logs_synced(conn: &Connection) -> Result<(), rusqlite::Error> {
-    conn.execute(
-        "UPDATE error_review_logs SET sync_status = 'synced' WHERE sync_status = 'pending_sync'",
-        [],
+pub fn mark_review_logs_synced(conn: &Connection, ids: &[String]) -> Result<(), rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "UPDATE error_review_logs SET sync_status = 'synced'
+         WHERE id = ?1 AND sync_status = 'pending_sync'",
     )?;
+    for id in ids {
+        stmt.execute(params![id])?;
+    }
     Ok(())
 }
 
-/// After a successful push, all locally-edited error items that have already
-/// been synced to the server (i.e. they carry a remote_id) can be marked as
-/// synced. Items without a remote_id stay pending — they must be uploaded
-/// through the analyze/upload flow first.
-pub fn mark_pushed_error_items_synced(conn: &Connection) -> Result<(), rusqlite::Error> {
-    conn.execute(
-        "UPDATE error_items SET sync_status = 'synced' WHERE sync_status = 'pending_sync' AND remote_id IS NOT NULL",
-        [],
+pub fn mark_pushed_error_items_synced(
+    conn: &Connection,
+    revisions: &[PendingRevision],
+) -> Result<(), rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "UPDATE error_items SET sync_status = 'synced'
+         WHERE id = ?1 AND local_revision = ?2 AND sync_status = 'pending_sync'",
     )?;
+    for revision in revisions {
+        stmt.execute(params![&revision.id, revision.local_revision])?;
+    }
+    Ok(())
+}
+
+pub fn mark_pushed_deletions_synced(
+    conn: &Connection,
+    revisions: &[PendingRevision],
+) -> Result<(), rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "UPDATE error_items SET sync_status = 'synced'
+         WHERE id = ?1 AND local_revision = ?2 AND sync_status = 'deleted'",
+    )?;
+    for revision in revisions {
+        stmt.execute(params![&revision.id, revision.local_revision])?;
+    }
     Ok(())
 }
 
@@ -437,13 +553,43 @@ pub fn upsert_pulled_error_item(
         return Ok(());
     }
 
-    let local_id = conn
+    let local = conn
         .query_row(
-            "SELECT id FROM error_items WHERE remote_id = ?1 LIMIT 1",
+            "SELECT id, sync_status, version, user_notes, ef, interval, repetitions, next_review
+             FROM error_items WHERE remote_id = ?1 LIMIT 1",
             params![remote_id],
-            |row| row.get::<_, String>(0),
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, f64>(4)?,
+                    row.get::<_, i64>(5)?,
+                    row.get::<_, i64>(6)?,
+                    row.get::<_, String>(7)?,
+                ))
+            },
         )
-        .ok()
+        .ok();
+    if let Some((_, _, local_version, ..)) = &local {
+        let incoming_version = item.get("version").and_then(|v| v.as_i64()).unwrap_or(0);
+        if incoming_version < *local_version {
+            return Ok(());
+        }
+    }
+    let preserve_pending_note = local
+        .as_ref()
+        .is_some_and(|value| value.1 == "pending_sync");
+    let target_sync_status = if preserve_pending_note {
+        "pending_sync"
+    } else {
+        "synced"
+    };
+
+    let local_id = local
+        .as_ref()
+        .map(|value| value.0.clone())
         .unwrap_or_else(generate_id);
     let notebook_id = ensure_default_notebook(conn)?;
     let knowledge_points = item
@@ -456,12 +602,49 @@ pub fn upsert_pulled_error_item(
         .and_then(|v| v.as_str())
         .map(ToString::to_string)
         .unwrap_or_else(now_str);
+    let user_notes = if preserve_pending_note {
+        local.as_ref().and_then(|value| value.3.clone())
+    } else if item.get("userNotes").is_some() {
+        item.get("userNotes")
+            .and_then(|v| v.as_str())
+            .map(ToString::to_string)
+    } else {
+        local.as_ref().and_then(|value| value.3.clone())
+    };
+    let ef = item
+        .get("ef")
+        .and_then(|v| v.as_f64())
+        .or_else(|| local.as_ref().map(|value| value.4))
+        .unwrap_or(2.5);
+    let interval = item
+        .get("interval")
+        .and_then(|v| v.as_i64())
+        .or_else(|| local.as_ref().map(|value| value.5))
+        .unwrap_or(1);
+    let repetitions = item
+        .get("repetitions")
+        .and_then(|v| v.as_i64())
+        .or_else(|| local.as_ref().map(|value| value.6))
+        .unwrap_or(0);
+    let next_review_value = item.get("nextReviewAt").or_else(|| item.get("nextReview"));
+    let next_review = if next_review_value.is_some() {
+        next_review_value
+            .and_then(|v| v.as_str())
+            .map(ToString::to_string)
+            .unwrap_or_else(today_str)
+    } else {
+        local
+            .as_ref()
+            .map(|value| value.7.clone())
+            .unwrap_or_else(today_str)
+    };
 
     conn.execute(
         "INSERT INTO error_items
             (id, remote_id, notebook_id, question_text, answer_text, analysis, wrong_answer_text,
-             mistake_analysis, mistake_status, knowledge_points, mastery_level, sync_status, version, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'synced', ?12, ?13)
+             mistake_analysis, mistake_status, knowledge_points, user_notes, mastery_level, ef,
+             interval, repetitions, next_review, sync_status, version, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
          ON CONFLICT(id) DO UPDATE SET
              question_text = excluded.question_text,
              answer_text = excluded.answer_text,
@@ -470,8 +653,13 @@ pub fn upsert_pulled_error_item(
              mistake_analysis = excluded.mistake_analysis,
              mistake_status = excluded.mistake_status,
              knowledge_points = excluded.knowledge_points,
+             user_notes = excluded.user_notes,
              mastery_level = excluded.mastery_level,
-             sync_status = 'synced',
+             ef = excluded.ef,
+             interval = excluded.interval,
+             repetitions = excluded.repetitions,
+             next_review = excluded.next_review,
+             sync_status = excluded.sync_status,
              version = excluded.version,
              updated_at = excluded.updated_at",
         params![
@@ -485,7 +673,13 @@ pub fn upsert_pulled_error_item(
             item.get("mistakeAnalysis").and_then(|v| v.as_str()),
             item.get("mistakeStatus").and_then(|v| v.as_str()),
             knowledge_points,
+            user_notes,
             item.get("masteryLevel").and_then(|v| v.as_i64()).unwrap_or(0),
+            ef,
+            interval,
+            repetitions,
+            next_review,
+            target_sync_status,
             version,
             updated_at,
         ],
@@ -520,10 +714,204 @@ pub fn apply_pulled_deletions(
     for id in ids {
         if let Some(remote_id) = id.as_str() {
             conn.execute(
-                "UPDATE error_items SET deleted_at = ?1, sync_status = 'deleted' WHERE remote_id = ?2",
+                "UPDATE error_items SET deleted_at = ?1, sync_status = 'synced' WHERE remote_id = ?2",
                 params![now_str(), remote_id],
             )?;
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::migration;
+
+    fn setup() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON").unwrap();
+        migration::run(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO error_notebooks (id, name) VALUES ('notebook-1', '默认错题本')",
+            [],
+        )
+        .unwrap();
+        conn
+    }
+
+    fn insert_remote_item(conn: &Connection, id: &str, remote_id: &str, status: &str) {
+        conn.execute(
+            "INSERT INTO error_items
+                (id, remote_id, notebook_id, question_text, user_notes, sync_status, version, updated_at)
+             VALUES (?1, ?2, 'notebook-1', 'question', 'local note', ?3, 3, '2026-06-20 10:00:00')",
+            params![id, remote_id, status],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn pending_batch_contains_items_logs_and_deletions() {
+        let conn = setup();
+        insert_remote_item(&conn, "item-1", "remote-1", "pending_sync");
+        insert_remote_item(&conn, "item-2", "remote-2", "deleted");
+        conn.execute(
+            "UPDATE error_items SET deleted_at = '2026-06-20 10:01:00' WHERE id = 'item-2'",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO error_review_logs
+                (id, error_item_id, quality, ef_before, ef_after, mastery_level, next_review, sync_status)
+             VALUES ('log-1', 'item-1', 4, 2.5, 2.6, 1, '2026-06-21', 'pending_sync')",
+            [],
+        )
+        .unwrap();
+
+        let batch = pending_sync_batch(&conn).unwrap();
+
+        assert_eq!(batch.error_items.len(), 1);
+        assert_eq!(batch.error_items[0]["remoteId"], "remote-1");
+        assert_eq!(batch.error_items[0]["userNotes"], "local note");
+        assert_eq!(batch.review_log_ids, vec!["log-1"]);
+        assert_eq!(batch.deleted_ids, vec!["remote-2"]);
+    }
+
+    #[test]
+    fn acknowledgements_only_mark_the_captured_snapshot() {
+        let conn = setup();
+        insert_remote_item(&conn, "item-1", "remote-1", "pending_sync");
+        conn.execute(
+            "INSERT INTO error_review_logs
+                (id, error_item_id, quality, ef_before, ef_after, mastery_level, next_review, sync_status)
+             VALUES ('log-1', 'item-1', 4, 2.5, 2.6, 1, '2026-06-21', 'pending_sync')",
+            [],
+        )
+        .unwrap();
+        let batch = pending_sync_batch(&conn).unwrap();
+
+        update_error_item_text(
+            &conn,
+            "item-1",
+            None,
+            None,
+            None,
+            None,
+            Some("edited in flight"),
+            None,
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO error_review_logs
+                (id, error_item_id, quality, ef_before, ef_after, mastery_level, next_review, sync_status)
+             VALUES ('log-2', 'item-1', 3, 2.6, 2.5, 1, '2026-06-22', 'pending_sync')",
+            [],
+        )
+        .unwrap();
+
+        mark_pushed_error_items_synced(&conn, &batch.error_item_revisions).unwrap();
+        mark_review_logs_synced(&conn, &batch.review_log_ids).unwrap();
+
+        let item_status: String = conn
+            .query_row(
+                "SELECT sync_status FROM error_items WHERE id = 'item-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let new_log_status: String = conn
+            .query_row(
+                "SELECT sync_status FROM error_review_logs WHERE id = 'log-2'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(item_status, "pending_sync");
+        assert_eq!(new_log_status, "pending_sync");
+    }
+
+    #[test]
+    fn pull_preserves_pending_local_edit_but_updates_synced_item() {
+        let conn = setup();
+        insert_remote_item(&conn, "item-1", "remote-1", "pending_sync");
+        let remote = serde_json::json!({
+            "remoteId": "remote-1",
+            "questionText": "remote question",
+            "userNotes": "remote note",
+            "masteryLevel": 2,
+            "ef": 2.8,
+            "interval": 6,
+            "repetitions": 2,
+            "nextReviewAt": "2026-06-26",
+            "version": 4,
+            "updatedAt": "2026-06-20T10:03:00Z"
+        });
+
+        upsert_pulled_error_item(&conn, &remote).unwrap();
+        let pending: (String, String, i64) = conn
+            .query_row(
+                "SELECT user_notes, question_text, version FROM error_items WHERE id = 'item-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(pending, ("local note".into(), "remote question".into(), 4));
+
+        conn.execute(
+            "UPDATE error_items SET sync_status = 'synced' WHERE id = 'item-1'",
+            [],
+        )
+        .unwrap();
+        upsert_pulled_error_item(&conn, &remote).unwrap();
+        let updated: (String, i64, i64, String) = conn
+            .query_row(
+                "SELECT user_notes, repetitions, version, next_review FROM error_items WHERE id = 'item-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(updated, ("remote note".into(), 2, 4, "2026-06-26".into()));
+    }
+
+    #[test]
+    fn partial_pull_preserves_fields_omitted_by_server() {
+        let conn = setup();
+        insert_remote_item(&conn, "item-1", "remote-1", "synced");
+        conn.execute(
+            "UPDATE error_items
+             SET ef = 2.8, interval = 8, repetitions = 3, next_review = '2026-07-01'
+             WHERE id = 'item-1'",
+            [],
+        )
+        .unwrap();
+        let remote = serde_json::json!({
+            "remoteId": "remote-1",
+            "questionText": "updated question",
+            "masteryLevel": 2,
+            "version": 4,
+            "updatedAt": "2026-06-20T10:03:00Z"
+        });
+
+        upsert_pulled_error_item(&conn, &remote).unwrap();
+
+        let preserved: (String, f64, i64, i64, String) = conn
+            .query_row(
+                "SELECT user_notes, ef, interval, repetitions, next_review
+                 FROM error_items WHERE id = 'item-1'",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            preserved,
+            ("local note".into(), 2.8, 8, 3, "2026-07-01".into())
+        );
+    }
 }
