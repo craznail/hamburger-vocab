@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from 'lucide-vue-next'
 import * as errorApi from '../api/errorItem'
+import RichText from '../components/RichText.vue'
 
 type EditableSection = 'question' | 'answer' | 'analysis' | 'mistake' | 'notes'
 
@@ -213,12 +214,17 @@ async function toggleSectionEdit(section: EditableSection) {
                 </button>
               </div>
 
+              <RichText
+                v-if="!isEditing('question')"
+                class="error-question-editor"
+                :text="form.questionText"
+                fallback="把题干整理成自己一眼能读懂的版本"
+              />
               <textarea
+                v-else
                 ref="questionEditorRef"
                 v-model="form.questionText"
                 class="error-editor error-question-editor"
-                :class="{ 'error-editor-readonly': !isEditing('question') }"
-                :readonly="!isEditing('question')"
                 placeholder="把题干整理成自己一眼能读懂的版本"
                 @input="syncEditorHeight(questionEditorRef)"
               />
@@ -300,12 +306,17 @@ async function toggleSectionEdit(section: EditableSection) {
                     <PencilLine v-else class="h-4 w-4" />
                   </button>
                 </div>
+                <RichText
+                  v-if="!isEditing('answer')"
+                  class="error-content-text"
+                  :text="form.answerText"
+                  fallback="暂无答案"
+                />
                 <textarea
+                  v-else
                   ref="answerEditorRef"
                   v-model="form.answerText"
                   class="error-editor error-content-editor error-answer-editor"
-                  :class="{ 'error-editor-readonly': !isEditing('answer') }"
-                  :readonly="!isEditing('answer')"
                   placeholder="用最短路径写出标准答案"
                   @input="syncEditorHeight(answerEditorRef)"
                 />
@@ -329,12 +340,17 @@ async function toggleSectionEdit(section: EditableSection) {
                     <PencilLine v-else class="h-4 w-4" />
                   </button>
                 </div>
+                <RichText
+                  v-if="!isEditing('analysis')"
+                  class="error-content-text"
+                  :text="form.analysis"
+                  fallback="暂无解析"
+                />
                 <textarea
+                  v-else
                   ref="analysisEditorRef"
                   v-model="form.analysis"
                   class="error-editor error-content-editor error-analysis-editor"
-                  :class="{ 'error-editor-readonly': !isEditing('analysis') }"
-                  :readonly="!isEditing('analysis')"
                   placeholder="把关键思路、公式、判断步骤串成一段顺畅的解析"
                   @input="syncEditorHeight(analysisEditorRef)"
                 />
@@ -349,7 +365,7 @@ async function toggleSectionEdit(section: EditableSection) {
                   <Brain class="h-5 w-5 text-[#ff786d]" />
                   <h2>错答记录</h2>
                 </div>
-                <p class="error-content-text">{{ item.wrongAnswerText }}</p>
+                <RichText class="error-content-text" :text="item.wrongAnswerText" />
               </section>
 
               <section class="error-content-section" :class="{ 'error-content-section-divider': item.wrongAnswerText }">
@@ -370,12 +386,17 @@ async function toggleSectionEdit(section: EditableSection) {
                     <PencilLine v-else class="h-4 w-4" />
                   </button>
                 </div>
+                <RichText
+                  v-if="!isEditing('mistake')"
+                  class="error-content-text"
+                  :text="form.mistakeAnalysis"
+                  fallback="暂无错因分析"
+                />
                 <textarea
+                  v-else
                   ref="mistakeEditorRef"
                   v-model="form.mistakeAnalysis"
                   class="error-editor error-content-editor error-note-editor"
-                  :class="{ 'error-editor-readonly': !isEditing('mistake') }"
-                  :readonly="!isEditing('mistake')"
                   placeholder="记录这次真正卡住的点：概念混淆、漏条件、粗心还是步骤断裂"
                   @input="syncEditorHeight(mistakeEditorRef)"
                 />
@@ -399,12 +420,17 @@ async function toggleSectionEdit(section: EditableSection) {
                     <PencilLine v-else class="h-4 w-4" />
                   </button>
                 </div>
+                <RichText
+                  v-if="!isEditing('notes')"
+                  class="error-content-text"
+                  :text="form.userNotes"
+                  fallback="暂无笔记"
+                />
                 <textarea
+                  v-else
                   ref="notesEditorRef"
                   v-model="form.userNotes"
                   class="error-editor error-content-editor error-note-editor"
-                  :class="{ 'error-editor-readonly': !isEditing('notes') }"
-                  :readonly="!isEditing('notes')"
                   placeholder="写一句下次看到这类题先做什么、先检查什么"
                   @input="syncEditorHeight(notesEditorRef)"
                 />

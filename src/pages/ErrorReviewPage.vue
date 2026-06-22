@@ -17,6 +17,7 @@ import {
   Target,
 } from 'lucide-vue-next'
 import * as errorApi from '../api/errorItem'
+import RichText from '../components/RichText.vue'
 
 const router = useRouter()
 const items = ref<errorApi.ErrorItem[]>([])
@@ -125,7 +126,11 @@ function updateKnowledgeOverflow() {
                 </div>
               </div>
 
-              <p class="error-question-text">{{ current.questionText || '这道题还没有题干，先根据图片回忆核心条件。' }}</p>
+              <RichText
+                class="error-question-text"
+                :text="current.questionText"
+                fallback="这道题还没有题干，先根据图片回忆核心条件。"
+              />
 
               <div v-if="knowledgePoints.length" class="error-question-tags-row">
                 <div
@@ -169,7 +174,7 @@ function updateKnowledgeOverflow() {
                     <Sparkles class="h-5 w-5 text-[#2f7cff]" />
                     <h2>标准答案</h2>
                   </div>
-                  <p class="error-content-text">{{ current.answerText || '暂无答案' }}</p>
+                  <RichText class="error-content-text" :text="current.answerText" fallback="暂无答案" />
                 </section>
 
                 <section class="error-content-section error-content-section-divider">
@@ -177,7 +182,7 @@ function updateKnowledgeOverflow() {
                     <Lightbulb class="h-5 w-5 text-[#2f7cff]" />
                     <h2>解析</h2>
                   </div>
-                  <p class="error-content-text">{{ current.analysis || '暂无解析' }}</p>
+                  <RichText class="error-content-text" :text="current.analysis" fallback="暂无解析" />
                 </section>
               </template>
 
@@ -187,7 +192,7 @@ function updateKnowledgeOverflow() {
                     <Brain class="h-5 w-5 text-[#ff786d]" />
                     <h2>错答记录</h2>
                   </div>
-                  <p class="error-content-text">{{ current.wrongAnswerText }}</p>
+                  <RichText class="error-content-text" :text="current.wrongAnswerText" />
                 </section>
 
                 <section v-if="current.mistakeAnalysis" class="error-content-section" :class="{ 'error-content-section-divider': current.wrongAnswerText }">
@@ -195,7 +200,7 @@ function updateKnowledgeOverflow() {
                     <Brain class="h-5 w-5 text-[#ff786d]" />
                     <h2>错因分析</h2>
                   </div>
-                  <p class="error-content-text">{{ current.mistakeAnalysis }}</p>
+                  <RichText class="error-content-text" :text="current.mistakeAnalysis" />
                 </section>
 
                 <section v-if="current.userNotes" class="error-content-section" :class="{ 'error-content-section-divider': current.wrongAnswerText || current.mistakeAnalysis }">
@@ -203,7 +208,7 @@ function updateKnowledgeOverflow() {
                     <NotebookPen class="h-5 w-5 text-[#2f7cff]" />
                     <h2>笔记</h2>
                   </div>
-                  <p class="error-content-text">{{ current.userNotes }}</p>
+                  <RichText class="error-content-text" :text="current.userNotes" />
                 </section>
               </template>
             </article>

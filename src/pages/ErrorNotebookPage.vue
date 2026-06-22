@@ -14,6 +14,7 @@ import {
   Target,
 } from 'lucide-vue-next'
 import BottomNav from '../components/BottomNav.vue'
+import RichText from '../components/RichText.vue'
 import * as errorApi from '../api/errorItem'
 import { useErrorNotebookStore } from '../stores/useErrorNotebookStore'
 import { getAppSettings } from '../platform/appSettings'
@@ -278,7 +279,7 @@ function getStatusText(item: errorApi.ErrorItem) {
             </div>
 
             <div class="error-list-copy">
-              <p class="error-list-title">{{ item.questionText || '待 AI 分析的错题' }}</p>
+              <RichText class="error-list-title" :text="item.questionText" fallback="待 AI 分析的错题" />
 
               <div v-if="getKnowledgePoints(item).length" class="error-tag-row">
                 <span v-for="point in getKnowledgePoints(item)" :key="point" class="error-chip">
