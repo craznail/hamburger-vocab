@@ -167,6 +167,19 @@ pub struct ErrorDraft {
 #[derive(Debug, Serialize, Deserialize, Clone, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/generated/")]
+pub struct ErrorSyncConflict {
+    pub id: String,
+    pub local_item_id: String,
+    pub remote_id: Option<String>,
+    pub server_version: i64,
+    pub reason: String,
+    pub has_remote_snapshot: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/generated/")]
 pub struct ErrorReviewResult {
     pub ef: f64,
     pub interval: i64,
@@ -178,8 +191,6 @@ pub struct ErrorReviewResult {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzeErrorResponse {
-    pub remote_id: String,
-    pub version: i64,
     pub question_text: Option<String>,
     pub answer_text: Option<String>,
     pub analysis: Option<String>,
@@ -189,7 +200,6 @@ pub struct AnalyzeErrorResponse {
     pub knowledge_points: Vec<String>,
     pub mastery_level: Option<i64>,
     pub image: Option<RemoteErrorImage>,
-    pub updated_at: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -197,10 +207,7 @@ pub struct AnalyzeErrorResponse {
 pub struct AnalyzeErrorFailureResponse {
     pub code: Option<String>,
     pub message: Option<String>,
-    pub remote_id: Option<String>,
-    pub version: Option<i64>,
     pub image: Option<RemoteErrorImage>,
-    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -209,4 +216,6 @@ pub struct RemoteErrorImage {
     pub remote_key: Option<String>,
     pub url: Option<String>,
     pub sha256: Option<String>,
+    pub content_type: Option<String>,
+    pub size: Option<i64>,
 }

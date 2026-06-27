@@ -23,7 +23,7 @@ const router = useRouter()
 const notebookStore = useErrorNotebookStore()
 const { items, auth, loading, syncError, dueCount, pendingCount, initialized } = storeToRefs(notebookStore)
 const syncMessage = ref('')
-const failedImages = ref(new Set<string>())
+const failedLocalImages = ref(new Set<string>())
 const errorNotebookHeroArt = new URL('../assets/hero/error-notebook-hero-bg.png', import.meta.url).href
 const appSettings = getAppSettings()
 const useMockData = computed(() => appSettings.errorNotebook?.enableMockDataFallback === true)
@@ -173,13 +173,14 @@ async function sync() {
 }
 
 function getImageSrc(item: errorApi.ErrorItem) {
-  if (failedImages.value.has(item.id)) return ''
-  if (item.localImagePath) return convertFileSrc(item.localImagePath)
+  if (item.localImagePath && !failedLocalImages.value.has(item.id)) {
+    return convertFileSrc(item.localImagePath)
+  }
   return item.remoteImageUrl || ''
 }
 
 function markImageFailed(id: string) {
-  failedImages.value = new Set([...failedImages.value, id])
+  failedLocalImages.value = new Set([...failedLocalImages.value, id])
 }
 
 function getKnowledgePoints(item: errorApi.ErrorItem) {
@@ -189,6 +190,8 @@ function getKnowledgePoints(item: errorApi.ErrorItem) {
 function getStatusText(item: errorApi.ErrorItem) {
   if (item.syncStatus === 'pending_analysis') return '待分析'
   if (item.syncStatus === 'pending_sync') return '待同步'
+  if (item.syncStatus === 'conflict') return '有冲突'
+  if (item.syncStatus === 'analyze_failed') return '分析失败'
   if (item.syncStatus === 'synced') return '已同步'
   return item.syncStatus || '本地保存'
 }

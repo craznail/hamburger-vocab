@@ -28,10 +28,16 @@ const done = ref(false)
 const activeTab = ref<'answer' | 'mistake'>('answer')
 const knowledgeExpanded = ref(false)
 const knowledgeOverflowing = ref(false)
+const localImageFailed = ref(false)
 const knowledgeTagsRef = ref<HTMLElement | null>(null)
 
 const current = computed(() => items.value[index.value] || null)
-const imageSrc = computed(() => current.value?.localImagePath ? convertFileSrc(current.value.localImagePath) : current.value?.remoteImageUrl || '')
+const imageSrc = computed(() => {
+  if (current.value?.localImagePath && !localImageFailed.value) {
+    return convertFileSrc(current.value.localImagePath)
+  }
+  return current.value?.remoteImageUrl || ''
+})
 const progressLabel = computed(() => done.value ? '完成' : `${index.value + 1} / ${items.value.length}`)
 const knowledgePoints = computed(() => current.value ? errorApi.parseKnowledgePoints(current.value.knowledgePoints) : [])
 
@@ -45,10 +51,17 @@ onMounted(async () => {
 watch(
   () => [current.value?.id, knowledgePoints.value.join('|')],
   async () => {
+    localImageFailed.value = false
     await nextTick()
     updateKnowledgeOverflow()
   },
 )
+
+function handleImageError() {
+  if (current.value?.localImagePath && !localImageFailed.value) {
+    localImageFailed.value = true
+  }
+}
 
 async function rate(quality: number) {
   if (!current.value) return
@@ -112,7 +125,7 @@ function updateKnowledgeOverflow() {
       <template v-else-if="current">
         <section class="error-hero-card">
           <div class="error-hero-top">
-            <img v-if="imageSrc" :src="imageSrc" class="error-thumb" />
+            <img v-if="imageSrc" :src="imageSrc" class="error-thumb" @error="handleImageError" />
 
             <div class="error-hero-content">
               <div class="error-mini-stats">

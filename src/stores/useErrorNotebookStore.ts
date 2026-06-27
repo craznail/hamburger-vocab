@@ -8,6 +8,7 @@ const STALE_MS = 8_000
 export const useErrorNotebookStore = defineStore('errorNotebook', () => {
   const notebooks = ref<errorApi.ErrorNotebook[]>([])
   const items = ref<errorApi.ErrorItem[]>([])
+  const conflicts = ref<errorApi.ErrorSyncConflict[]>([])
   const auth = ref<authApi.AuthStatus>({ loggedIn: false })
   const initialized = ref(false)
   const loading = ref(false)
@@ -17,7 +18,8 @@ export const useErrorNotebookStore = defineStore('errorNotebook', () => {
   let inflightSync: Promise<void> | null = null
 
   const dueCount = computed(() => notebooks.value.reduce((sum, notebook) => sum + (notebook.dueCount || 0), 0))
-  const pendingCount = computed(() => items.value.filter(item => item.syncStatus !== 'synced').length)
+  const pendingCount = computed(() => items.value.filter(item => item.syncStatus === 'pending_sync' || item.syncStatus === 'conflict').length)
+  const conflictCount = computed(() => conflicts.value.length)
   const hasData = computed(() => notebooks.value.length > 0 || items.value.length > 0 || initialized.value)
 
   async function syncRemote(): Promise<void> {
@@ -72,12 +74,14 @@ export const useErrorNotebookStore = defineStore('errorNotebook', () => {
           }
         }
 
-        const [nextNotebooks, nextItems] = await Promise.all([
+        const [nextNotebooks, nextItems, nextConflicts] = await Promise.all([
           errorApi.getErrorNotebooks(),
           errorApi.getErrorItems(),
+          errorApi.getErrorSyncConflicts(),
         ])
         notebooks.value = nextNotebooks
         items.value = nextItems
+        conflicts.value = nextConflicts
         lastLoadedAt.value = Date.now()
         initialized.value = true
       } finally {
@@ -106,12 +110,14 @@ export const useErrorNotebookStore = defineStore('errorNotebook', () => {
   return {
     notebooks,
     items,
+    conflicts,
     auth,
     initialized,
     loading,
     syncError,
     dueCount,
     pendingCount,
+    conflictCount,
     hasData,
     refresh,
     ensureFresh,

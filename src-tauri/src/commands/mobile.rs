@@ -39,7 +39,41 @@ pub struct AuthStatus {
 }
 
 fn normalize_server_url(value: &str) -> String {
-    value.trim().trim_end_matches('/').to_string()
+    let trimmed = value.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let Ok(mut parsed) = reqwest::Url::parse(trimmed) else {
+        return trimmed.to_string();
+    };
+
+    if parsed
+        .host_str()
+        .is_some_and(|host| host.eq_ignore_ascii_case("localhost"))
+    {
+        let _ = parsed.set_host(Some("127.0.0.1"));
+    }
+
+    parsed.to_string().trim_end_matches('/').to_string()
+}
+
+pub(crate) fn load_normalized_server_url(
+    conn: &rusqlite::Connection,
+) -> Result<Option<String>, String> {
+    let Some(server_url) =
+        crate::db::error_repo::get_sync_value(conn, "server_url").map_err(|e| e.to_string())?
+    else {
+        return Ok(None);
+    };
+
+    let normalized = normalize_server_url(&server_url);
+    if normalized != server_url {
+        crate::db::error_repo::set_sync_value(conn, "server_url", &normalized)
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(Some(normalized))
 }
 
 /// Convert a relative TTL (seconds from now) into an absolute expiry timestamp
@@ -54,8 +88,8 @@ fn absolute_expiry(expires_in: i64) -> String {
 
 /// Returns true when the stored access token has not expired yet.
 fn is_access_token_valid(conn: &rusqlite::Connection) -> Result<bool, String> {
-    let access = crate::db::error_repo::get_sync_value(conn, "access_token")
-        .map_err(|e| e.to_string())?;
+    let access =
+        crate::db::error_repo::get_sync_value(conn, "access_token").map_err(|e| e.to_string())?;
     if access.is_none() {
         return Ok(false);
     }
@@ -73,8 +107,7 @@ fn is_access_token_valid(conn: &rusqlite::Connection) -> Result<bool, String> {
 }
 
 fn build_auth_status(conn: &rusqlite::Connection) -> Result<AuthStatus, String> {
-    let server_url =
-        crate::db::error_repo::get_sync_value(conn, "server_url").map_err(|e| e.to_string())?;
+    let server_url = load_normalized_server_url(conn)?;
     let logged_in = is_access_token_valid(conn)?;
     let user = if logged_in {
         crate::db::error_repo::get_sync_value(conn, "mobile_user")
@@ -88,6 +121,10 @@ fn build_auth_status(conn: &rusqlite::Connection) -> Result<AuthStatus, String> 
         server_url,
         user,
     })
+}
+
+fn user_id(value: &serde_json::Value) -> Option<&str> {
+    value.get("id").and_then(|id| id.as_str())
 }
 
 #[tauri::command]
@@ -122,6 +159,24 @@ pub async fn mobile_login(
         .map_err(|e| format!("登录响应解析失败: {e}"))?;
 
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let previous_server_url = load_normalized_server_url(&conn)?;
+    let previous_user_id = crate::db::error_repo::get_sync_value(&conn, "mobile_user")
+        .map_err(|e| e.to_string())?
+        .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
+        .and_then(|value| user_id(&value).map(ToOwned::to_owned));
+    let next_user_id = user_id(&login.user).map(ToOwned::to_owned);
+    let identity_changed = previous_server_url
+        .as_deref()
+        .is_some_and(|value| value != server_url)
+        || (previous_user_id.is_some() && previous_user_id != next_user_id);
+
+    if identity_changed {
+        crate::db::error_repo::purge_remote_cache(&conn).map_err(|e| e.to_string())?;
+    } else {
+        crate::db::error_repo::delete_sync_value(&conn, "last_error_sync_cursor")
+            .map_err(|e| e.to_string())?;
+    }
+
     crate::db::error_repo::set_sync_value(&conn, "server_url", &server_url)
         .map_err(|e| e.to_string())?;
     crate::db::error_repo::set_sync_value(&conn, "access_token", &login.access_token)
@@ -166,8 +221,7 @@ pub async fn refresh_access_token_inner(
 ) -> Result<(String, String), String> {
     let (server_url, refresh_token) = {
         let conn = state.conn.lock().map_err(|e| e.to_string())?;
-        let server_url =
-            crate::db::error_repo::get_sync_value(&conn, "server_url").map_err(|e| e.to_string())?;
+        let server_url = load_normalized_server_url(&conn)?;
         let refresh_token = crate::db::error_repo::get_sync_value(&conn, "refresh_token")
             .map_err(|e| e.to_string())?;
         (server_url, refresh_token)
@@ -233,4 +287,29 @@ pub fn mobile_logout(state: State<'_, DbState>) -> Result<AuthStatus, String> {
 pub fn get_auth_status(state: State<'_, DbState>) -> Result<AuthStatus, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     build_auth_status(&conn)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_server_url;
+
+    #[test]
+    fn normalize_server_url_prefers_ipv4_loopback_for_localhost() {
+        assert_eq!(
+            normalize_server_url("http://localhost:3000"),
+            "http://127.0.0.1:3000"
+        );
+        assert_eq!(
+            normalize_server_url("http://localhost:3000/api/mobile/auth/login/"),
+            "http://127.0.0.1:3000/api/mobile/auth/login"
+        );
+    }
+
+    #[test]
+    fn normalize_server_url_keeps_non_localhost_hosts() {
+        assert_eq!(
+            normalize_server_url("https://example.com/api"),
+            "https://example.com/api"
+        );
+    }
 }

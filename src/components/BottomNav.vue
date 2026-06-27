@@ -17,7 +17,7 @@ const items = [
 const routeGroups = {
   Home: ['Home'],
   Library: ['Library', 'DeckDetail', 'Import'],
-  Study: ['Study', 'Dictation'],
+  Study: ['Study', 'WordReview', 'Dictation'],
   ErrorNotebook: ['ErrorNotebook', 'ErrorAdd', 'ErrorDetail', 'ErrorReview'],
   Stats: ['Stats', 'Achievements'],
   Profile: ['Profile', 'Settings']

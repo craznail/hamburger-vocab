@@ -34,7 +34,7 @@ const topDecks = computed(() => store.sortedDecks.slice(0, 2))
 
 function goStudy({ deckId = undefined, practice = false } = {}) {
   router.push({
-    name: 'Study',
+    name: practice || deckId ? 'WordReview' : 'Study',
     query: {
       ...(deckId ? { deckId } : {}),
       ...(practice ? { mode: 'practice' } : {}),
