@@ -577,11 +577,10 @@ pub fn get_error_notebooks(conn: &Connection) -> Result<Vec<ErrorNotebook>, rusq
     let mut stmt = conn.prepare(
         "SELECT n.id, n.name, n.created_at,
                 COUNT(e.id) AS item_count,
-                SUM(CASE
-                        WHEN e.deleted_at IS NULL
-                         AND e.analysis_status = 'ready'
-                         AND e.next_review <= ?1
-                         AND e.remote_id IS NOT NULL
+                 SUM(CASE
+                         WHEN e.deleted_at IS NULL
+                          AND e.analysis_status = 'ready'
+                          AND e.next_review <= ?1
                         THEN 1 ELSE 0 END
                 ) AS due_count
          FROM error_notebooks n
@@ -752,16 +751,7 @@ pub fn get_due_error_items(conn: &Connection) -> Result<Vec<ErrorItem>, rusqlite
         "{ERROR_ITEM_SELECT}
          WHERE e.deleted_at IS NULL
            AND e.analysis_status = 'ready'
-           AND e.remote_id IS NOT NULL
            AND e.next_review <= ?1
-           AND NOT EXISTS (
-             SELECT 1 FROM error_sync_ops op
-             WHERE op.local_item_id = e.id AND op.status IN ('pending', 'conflicted')
-           )
-           AND NOT EXISTS (
-             SELECT 1 FROM error_sync_conflicts conflict
-             WHERE conflict.local_item_id = e.id
-           )
          ORDER BY e.next_review ASC, e.updated_at DESC
          LIMIT 50"
     );
@@ -1025,6 +1015,23 @@ pub fn rate_error_item(
             Some(remote_id.as_str()),
             Some(remote.1),
             &payload,
+        )?;
+    } else if let Some(create_op_id) = conn
+        .query_row(
+            "SELECT op_id FROM error_sync_ops
+             WHERE local_item_id = ?1 AND status = 'pending' AND action = 'create'
+             ORDER BY created_at ASC LIMIT 1",
+            params![id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+    {
+        let payload = build_item_payload(conn, id)?;
+        conn.execute(
+            "UPDATE error_sync_ops
+             SET payload_json = ?1, updated_at = ?2
+             WHERE op_id = ?3",
+            params![payload.to_string(), now, create_op_id],
         )?;
     }
 
@@ -1379,19 +1386,73 @@ mod tests {
         conn
     }
 
-    #[test]
-    fn local_edit_updates_pending_create_payload_instead_of_creating_update_op() {
-        let conn = test_db();
+    fn seed_notebook(conn: &Connection, notebook_id: &str) {
         upsert_pulled_notebook(
-            &conn,
+            conn,
             &json!({
-                "remoteId": "math",
+                "remoteId": notebook_id,
                 "name": "数学",
                 "createdAt": "2026-06-27 10:00:00",
                 "updatedAt": "2026-06-27 10:00:00"
             }),
         )
         .unwrap();
+    }
+
+    fn create_ready_local_item(conn: &Connection, notebook_id: &str, next_review: &str) -> String {
+        let draft =
+            create_error_draft(conn, Some(notebook_id), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
+        apply_analyze_response(
+            conn,
+            &draft.id,
+            &AnalyzeErrorResponse {
+                question_text: Some("ready".into()),
+                answer_text: Some("answer".into()),
+                analysis: Some("analysis".into()),
+                wrong_answer_text: None,
+                mistake_analysis: None,
+                mistake_status: None,
+                knowledge_points: vec!["kp".into()],
+                mastery_level: Some(0),
+                image: Some(RemoteErrorImage {
+                    remote_key: Some("k".into()),
+                    url: Some("/img".into()),
+                    sha256: Some("sha".into()),
+                    content_type: Some("image/jpeg".into()),
+                    size: Some(1),
+                }),
+            },
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE error_items SET next_review = ?1, updated_at = '2026-06-27 12:00:00' WHERE id = ?2",
+            params![next_review, draft.id],
+        )
+        .unwrap();
+        draft.id
+    }
+
+    fn insert_error_item_with_status(
+        conn: &Connection,
+        id: &str,
+        notebook_id: &str,
+        analysis_status: &str,
+        next_review: &str,
+        deleted_at: Option<&str>,
+    ) {
+        conn.execute(
+            "INSERT INTO error_items
+                (id, notebook_id, question_text, analysis_status, next_review, deleted_at, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, '2026-06-27 10:00:00', '2026-06-27 10:00:00')",
+            params![id, notebook_id, id, analysis_status, next_review, deleted_at],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn local_edit_updates_pending_create_payload_instead_of_creating_update_op() {
+        let conn = test_db();
+        seed_notebook(&conn, "math");
         let draft =
             create_error_draft(&conn, Some("math"), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
         apply_analyze_response(
@@ -1438,16 +1499,7 @@ mod tests {
     #[test]
     fn pulled_snapshot_only_updates_server_snapshot_when_local_item_has_pending_op() {
         let conn = test_db();
-        upsert_pulled_notebook(
-            &conn,
-            &json!({
-                "remoteId": "math",
-                "name": "数学",
-                "createdAt": "2026-06-27 10:00:00",
-                "updatedAt": "2026-06-27 10:00:00"
-            }),
-        )
-        .unwrap();
+        seed_notebook(&conn, "math");
         let draft =
             create_error_draft(&conn, Some("math"), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
         apply_analyze_response(
@@ -1518,16 +1570,7 @@ mod tests {
     #[test]
     fn pulled_remote_only_item_persists_remote_image_url() {
         let conn = test_db();
-        upsert_pulled_notebook(
-            &conn,
-            &json!({
-                "remoteId": "math",
-                "name": "数学",
-                "createdAt": "2026-06-27 10:00:00",
-                "updatedAt": "2026-06-27 10:00:00"
-            }),
-        )
-        .unwrap();
+        seed_notebook(&conn, "math");
 
         let local_id = upsert_remote_item_snapshot(
             &conn,
@@ -1566,16 +1609,7 @@ mod tests {
     #[test]
     fn getter_backfills_missing_image_row_from_server_snapshot() {
         let conn = test_db();
-        upsert_pulled_notebook(
-            &conn,
-            &json!({
-                "remoteId": "math",
-                "name": "数学",
-                "createdAt": "2026-06-27 10:00:00",
-                "updatedAt": "2026-06-27 10:00:00"
-            }),
-        )
-        .unwrap();
+        seed_notebook(&conn, "math");
         conn.execute(
             "INSERT INTO error_items
                 (id, remote_id, notebook_id, question_text, analysis_status, remote_version, server_snapshot_json, created_at, updated_at)
@@ -1621,16 +1655,7 @@ mod tests {
     #[test]
     fn pending_or_failed_local_items_do_not_keep_sync_ops_after_save() {
         let conn = test_db();
-        upsert_pulled_notebook(
-            &conn,
-            &json!({
-                "remoteId": "math",
-                "name": "数学",
-                "createdAt": "2026-06-27 10:00:00",
-                "updatedAt": "2026-06-27 10:00:00"
-            }),
-        )
-        .unwrap();
+        seed_notebook(&conn, "math");
 
         let draft =
             create_error_draft(&conn, Some("math"), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
@@ -1697,16 +1722,7 @@ mod tests {
     #[test]
     fn get_syncable_pending_ops_skips_non_ready_create_and_update_ops() {
         let conn = test_db();
-        upsert_pulled_notebook(
-            &conn,
-            &json!({
-                "remoteId": "math",
-                "name": "数学",
-                "createdAt": "2026-06-27 10:00:00",
-                "updatedAt": "2026-06-27 10:00:00"
-            }),
-        )
-        .unwrap();
+        seed_notebook(&conn, "math");
 
         let ready_draft =
             create_error_draft(&conn, Some("math"), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
@@ -1760,16 +1776,7 @@ mod tests {
     #[test]
     fn list_error_sync_conflicts_exposes_reason_and_snapshot_presence() {
         let conn = test_db();
-        upsert_pulled_notebook(
-            &conn,
-            &json!({
-                "remoteId": "math",
-                "name": "数学",
-                "createdAt": "2026-06-27 10:00:00",
-                "updatedAt": "2026-06-27 10:00:00"
-            }),
-        )
-        .unwrap();
+        seed_notebook(&conn, "math");
         let draft =
             create_error_draft(&conn, Some("math"), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
         apply_analyze_response(
@@ -1811,5 +1818,109 @@ mod tests {
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].reason, "validation_error");
         assert!(!conflicts[0].has_remote_snapshot);
+    }
+
+    #[test]
+    fn local_ready_item_without_remote_id_is_due_and_counts_in_notebook() {
+        let conn = test_db();
+        seed_notebook(&conn, "math");
+
+        let local_id = create_ready_local_item(&conn, "math", "2026-06-27");
+
+        let due_items = get_due_error_items(&conn).unwrap();
+        assert_eq!(due_items.len(), 1);
+        assert_eq!(due_items[0].id, local_id);
+        assert!(due_items[0].remote_id.is_none());
+
+        let notebooks = get_error_notebooks(&conn).unwrap();
+        assert_eq!(notebooks.len(), 1);
+        assert_eq!(notebooks[0].due_count, 1);
+    }
+
+    #[test]
+    fn due_queue_excludes_non_ready_and_deleted_items() {
+        let conn = test_db();
+        seed_notebook(&conn, "math");
+
+        insert_error_item_with_status(
+            &conn,
+            "pending-item",
+            "math",
+            "pending_analysis",
+            "2026-06-27",
+            None,
+        );
+        insert_error_item_with_status(
+            &conn,
+            "analyzing-item",
+            "math",
+            "analyzing",
+            "2026-06-27",
+            None,
+        );
+        insert_error_item_with_status(
+            &conn,
+            "failed-item",
+            "math",
+            "analyze_failed",
+            "2026-06-27",
+            None,
+        );
+        insert_error_item_with_status(
+            &conn,
+            "deleted-item",
+            "math",
+            "ready",
+            "2026-06-27",
+            Some("2026-06-27 13:00:00"),
+        );
+        insert_error_item_with_status(
+            &conn,
+            "ready-item",
+            "math",
+            "ready",
+            "2026-06-27",
+            None,
+        );
+
+        let due_items = get_due_error_items(&conn).unwrap();
+        assert_eq!(due_items.len(), 1);
+        assert_eq!(due_items[0].id, "ready-item");
+
+        let notebooks = get_error_notebooks(&conn).unwrap();
+        assert_eq!(notebooks[0].due_count, 1);
+    }
+
+    #[test]
+    fn rating_local_ready_item_updates_local_state_and_pending_create_without_review_op() {
+        let conn = test_db();
+        seed_notebook(&conn, "math");
+
+        let local_id = create_ready_local_item(&conn, "math", "2026-06-27");
+        let result = rate_error_item(&conn, &local_id, 5, 42).unwrap();
+
+        let item = get_error_item(&conn, &local_id).unwrap().unwrap();
+        assert_eq!(item.repetitions, result.repetitions);
+        assert_eq!(item.interval, result.interval);
+        assert_eq!(item.mastery_level, result.mastery_level);
+        assert_eq!(item.next_review, result.next_review);
+
+        let review_log_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM error_review_logs WHERE error_item_id = ?1",
+                params![local_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(review_log_count, 1);
+
+        let ops = get_pending_sync_ops(&conn).unwrap();
+        assert_eq!(ops.len(), 1);
+        assert_eq!(ops[0].action, "create");
+        assert_eq!(ops[0].payload["repetitions"], json!(result.repetitions));
+        assert_eq!(ops[0].payload["interval"], json!(result.interval));
+        assert_eq!(ops[0].payload["masteryLevel"], json!(result.mastery_level));
+        assert_eq!(ops[0].payload["nextReview"], json!(result.next_review));
+        assert!(ops.iter().all(|op| op.action != "review"));
     }
 }
