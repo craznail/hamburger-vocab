@@ -230,7 +230,14 @@ src-tauri/src/db/error_repo.rs
 
 ### 状态
 
-已由用户确认，等待 Codex 实现。
+已在客户端落地，并通过本轮复核：
+
+```txt
+cargo test: 39 passed
+npm run build: success
+```
+
+`ERROR_SYNC_PROTOCOL.md` 已同步记录该策略。
 
 ---
 
@@ -284,7 +291,11 @@ R PRD.md -> docs/archive/PRD_vocab_v0.2.md
 
 ### 状态
 
-已由用户确认，等待 Codex 处理。
+已处理。旧 `PRD.md` 内容已保留到：
+
+```txt
+docs/archive/PRD_vocab_v0.2.md
+```
 
 ---
 
@@ -320,3 +331,109 @@ RECALL_PRODUCT_PRINCIPLES.md
 ### 状态
 
 已建立。
+
+---
+
+## 2026-06-28：服务端协议核对后优先修复测试
+
+### 背景
+
+本地 Codex 已核对 `wrong-notebook` 服务端 mobile 同步接口。
+
+核对结论：
+
+- mobile login / refresh / analyze / pull 基本匹配客户端协议。
+- mobile sync push 主体基本匹配，但服务端实际多返回部分字段。
+- 服务端 create 可以接收本地先复习后的 SM-2 字段。
+- pull notebooks 返回当前用户完整列表，满足客户端 `replace_notebooks` 前提。
+- 服务端现有 `mobile-sync-push` 集成测试仍使用旧协议结构，运行失败。
+
+### 决定
+
+下一步优先修复服务端自动化测试，而不是立即大改服务端业务逻辑。
+
+优先级：
+
+```txt
+P0：修复 mobile-sync-push 集成测试，让它使用当前 deviceId + ops[] 协议。
+P1：补 mobile auth / analyze / pull 的最小集成测试。
+P2：持续同步 ERROR_SYNC_PROTOCOL.md 中服务端实际字段。
+```
+
+### 影响
+
+后续服务端改动应先建立有效回归保护。
+
+当前判断不是“服务端主流程已坏”，而是：
+
+```txt
+实现已经前进，测试和协议文档没有完全跟上。
+```
+
+### 状态
+
+仍是业务主线下一步。当前客户端协议和复习闭环已通过本轮复核；服务端 `wrong-notebook` 不在当前 CodexPro allowed roots 内，本轮无法现场复验源码和集成测试。
+
+下一步需要把服务端仓库接入 CodexPro，或在服务端仓库内继续修复 `mobile-sync-push` 集成测试。
+
+---
+
+## 2026-06-28：采用 ai-bridge 方案 B 自动化协作
+
+### 背景
+
+当前 ChatGPT 与本地 Codex 的协作依赖用户手动传话：
+
+```txt
+ChatGPT 写 current-plan.md
+用户通知 Codex 执行
+Codex 写 codex-report.md
+用户回到 ChatGPT 请求 review
+```
+
+该流程可控但繁琐。
+
+### 决定
+
+采用轻量自动化方案 B：
+
+```txt
+watcher 自动检测 .ai-bridge/current-plan.md 和 task-state.json
+runner 自动触发本地 Codex 执行
+Codex 完成后写 codex-report.md
+状态进入 waiting_for_chatgpt_review
+ChatGPT 继续负责 review
+用户保留最终接受权
+```
+
+### 边界
+
+自动化只负责流程，不负责产品决策。
+
+必须保留以下安全规则：
+
+```txt
+Codex 不自动 commit。
+Codex 不删除长期文档。
+测试失败不能标记 completed。
+产品决策必须写入 DECISIONS.md。
+ChatGPT review 仍是强制关卡。
+用户保留最终是否接受改动的权利。
+```
+
+### 初版落地范围
+
+先建立：
+
+```txt
+.ai-bridge/task-state.json
+scripts/ai-bridge-runner.sh
+scripts/ai-bridge-watch.sh
+.ai-bridge/README.md
+```
+
+初版可以只实现本机半自动 / watcher 自动触发，不要求跨仓库完全自动，不要求自动 commit。
+
+### 状态
+
+已由用户确认，等待 Codex 设计并实现初版自动化脚本。

@@ -1,1914 +1,1882 @@
-diff --git a/src-tauri/src/db/error_repo.rs b/src-tauri/src/db/error_repo.rs
-index 4bf0f78..04d3ec6 100644
---- a/src-tauri/src/db/error_repo.rs
-+++ b/src-tauri/src/db/error_repo.rs
-@@ -577,11 +577,10 @@ pub fn get_error_notebooks(conn: &Connection) -> Result<Vec<ErrorNotebook>, rusq
-     let mut stmt = conn.prepare(
-         "SELECT n.id, n.name, n.created_at,
-                 COUNT(e.id) AS item_count,
--                SUM(CASE
--                        WHEN e.deleted_at IS NULL
--                         AND e.analysis_status = 'ready'
--                         AND e.next_review <= ?1
--                         AND e.remote_id IS NOT NULL
-+                 SUM(CASE
-+                         WHEN e.deleted_at IS NULL
-+                          AND e.analysis_status = 'ready'
-+                          AND e.next_review <= ?1
-                         THEN 1 ELSE 0 END
-                 ) AS due_count
-          FROM error_notebooks n
-@@ -752,16 +751,7 @@ pub fn get_due_error_items(conn: &Connection) -> Result<Vec<ErrorItem>, rusqlite
-         "{ERROR_ITEM_SELECT}
-          WHERE e.deleted_at IS NULL
-            AND e.analysis_status = 'ready'
--           AND e.remote_id IS NOT NULL
-            AND e.next_review <= ?1
--           AND NOT EXISTS (
--             SELECT 1 FROM error_sync_ops op
--             WHERE op.local_item_id = e.id AND op.status IN ('pending', 'conflicted')
--           )
--           AND NOT EXISTS (
--             SELECT 1 FROM error_sync_conflicts conflict
--             WHERE conflict.local_item_id = e.id
--           )
-          ORDER BY e.next_review ASC, e.updated_at DESC
-          LIMIT 50"
-     );
-@@ -1026,6 +1016,23 @@ pub fn rate_error_item(
-             Some(remote.1),
-             &payload,
-         )?;
-+    } else if let Some(create_op_id) = conn
-+        .query_row(
-+            "SELECT op_id FROM error_sync_ops
-+             WHERE local_item_id = ?1 AND status = 'pending' AND action = 'create'
-+             ORDER BY created_at ASC LIMIT 1",
-+            params![id],
-+            |row| row.get::<_, String>(0),
-+        )
-+        .optional()?
-+    {
-+        let payload = build_item_payload(conn, id)?;
-+        conn.execute(
-+            "UPDATE error_sync_ops
-+             SET payload_json = ?1, updated_at = ?2
-+             WHERE op_id = ?3",
-+            params![payload.to_string(), now, create_op_id],
-+        )?;
-     }
- 
-     Ok(ErrorReviewResult {
-@@ -1379,19 +1386,73 @@ mod tests {
-         conn
-     }
- 
--    #[test]
--    fn local_edit_updates_pending_create_payload_instead_of_creating_update_op() {
--        let conn = test_db();
-+    fn seed_notebook(conn: &Connection, notebook_id: &str) {
-         upsert_pulled_notebook(
--            &conn,
-+            conn,
-             &json!({
--                "remoteId": "math",
-+                "remoteId": notebook_id,
-                 "name": "数学",
-                 "createdAt": "2026-06-27 10:00:00",
-                 "updatedAt": "2026-06-27 10:00:00"
-             }),
-         )
-         .unwrap();
-+    }
-+
-+    fn create_ready_local_item(conn: &Connection, notebook_id: &str, next_review: &str) -> String {
-+        let draft =
-+            create_error_draft(conn, Some(notebook_id), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
-+        apply_analyze_response(
-+            conn,
-+            &draft.id,
-+            &AnalyzeErrorResponse {
-+                question_text: Some("ready".into()),
-+                answer_text: Some("answer".into()),
-+                analysis: Some("analysis".into()),
-+                wrong_answer_text: None,
-+                mistake_analysis: None,
-+                mistake_status: None,
-+                knowledge_points: vec!["kp".into()],
-+                mastery_level: Some(0),
-+                image: Some(RemoteErrorImage {
-+                    remote_key: Some("k".into()),
-+                    url: Some("/img".into()),
-+                    sha256: Some("sha".into()),
-+                    content_type: Some("image/jpeg".into()),
-+                    size: Some(1),
-+                }),
-+            },
-+        )
-+        .unwrap();
-+        conn.execute(
-+            "UPDATE error_items SET next_review = ?1, updated_at = '2026-06-27 12:00:00' WHERE id = ?2",
-+            params![next_review, draft.id],
-+        )
-+        .unwrap();
-+        draft.id
-+    }
-+
-+    fn insert_error_item_with_status(
-+        conn: &Connection,
-+        id: &str,
-+        notebook_id: &str,
-+        analysis_status: &str,
-+        next_review: &str,
-+        deleted_at: Option<&str>,
-+    ) {
-+        conn.execute(
-+            "INSERT INTO error_items
-+                (id, notebook_id, question_text, analysis_status, next_review, deleted_at, created_at, updated_at)
-+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, '2026-06-27 10:00:00', '2026-06-27 10:00:00')",
-+            params![id, notebook_id, id, analysis_status, next_review, deleted_at],
-+        )
-+        .unwrap();
-+    }
-+
-+    #[test]
-+    fn local_edit_updates_pending_create_payload_instead_of_creating_update_op() {
-+        let conn = test_db();
-+        seed_notebook(&conn, "math");
-         let draft =
-             create_error_draft(&conn, Some("math"), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
-         apply_analyze_response(
-@@ -1438,16 +1499,7 @@ mod tests {
-     #[test]
-     fn pulled_snapshot_only_updates_server_snapshot_when_local_item_has_pending_op() {
-         let conn = test_db();
--        upsert_pulled_notebook(
--            &conn,
--            &json!({
--                "remoteId": "math",
--                "name": "数学",
--                "createdAt": "2026-06-27 10:00:00",
--                "updatedAt": "2026-06-27 10:00:00"
--            }),
--        )
--        .unwrap();
-+        seed_notebook(&conn, "math");
-         let draft =
-             create_error_draft(&conn, Some("math"), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
-         apply_analyze_response(
-@@ -1518,16 +1570,7 @@ mod tests {
-     #[test]
-     fn pulled_remote_only_item_persists_remote_image_url() {
-         let conn = test_db();
--        upsert_pulled_notebook(
--            &conn,
--            &json!({
--                "remoteId": "math",
--                "name": "数学",
--                "createdAt": "2026-06-27 10:00:00",
--                "updatedAt": "2026-06-27 10:00:00"
--            }),
--        )
--        .unwrap();
-+        seed_notebook(&conn, "math");
- 
-         let local_id = upsert_remote_item_snapshot(
-             &conn,
-@@ -1566,16 +1609,7 @@ mod tests {
-     #[test]
-     fn getter_backfills_missing_image_row_from_server_snapshot() {
-         let conn = test_db();
--        upsert_pulled_notebook(
--            &conn,
--            &json!({
--                "remoteId": "math",
--                "name": "数学",
--                "createdAt": "2026-06-27 10:00:00",
--                "updatedAt": "2026-06-27 10:00:00"
--            }),
--        )
--        .unwrap();
-+        seed_notebook(&conn, "math");
-         conn.execute(
-             "INSERT INTO error_items
-                 (id, remote_id, notebook_id, question_text, analysis_status, remote_version, server_snapshot_json, created_at, updated_at)
-@@ -1621,16 +1655,7 @@ mod tests {
-     #[test]
-     fn pending_or_failed_local_items_do_not_keep_sync_ops_after_save() {
-         let conn = test_db();
--        upsert_pulled_notebook(
--            &conn,
--            &json!({
--                "remoteId": "math",
--                "name": "数学",
--                "createdAt": "2026-06-27 10:00:00",
--                "updatedAt": "2026-06-27 10:00:00"
--            }),
--        )
--        .unwrap();
-+        seed_notebook(&conn, "math");
- 
-         let draft =
-             create_error_draft(&conn, Some("math"), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
-@@ -1697,16 +1722,7 @@ mod tests {
-     #[test]
-     fn get_syncable_pending_ops_skips_non_ready_create_and_update_ops() {
-         let conn = test_db();
--        upsert_pulled_notebook(
--            &conn,
--            &json!({
--                "remoteId": "math",
--                "name": "数学",
--                "createdAt": "2026-06-27 10:00:00",
--                "updatedAt": "2026-06-27 10:00:00"
--            }),
--        )
--        .unwrap();
-+        seed_notebook(&conn, "math");
- 
-         let ready_draft =
-             create_error_draft(&conn, Some("math"), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
-@@ -1760,16 +1776,7 @@ mod tests {
-     #[test]
-     fn list_error_sync_conflicts_exposes_reason_and_snapshot_presence() {
-         let conn = test_db();
--        upsert_pulled_notebook(
--            &conn,
--            &json!({
--                "remoteId": "math",
--                "name": "数学",
--                "createdAt": "2026-06-27 10:00:00",
--                "updatedAt": "2026-06-27 10:00:00"
--            }),
--        )
--        .unwrap();
-+        seed_notebook(&conn, "math");
-         let draft =
-             create_error_draft(&conn, Some("math"), "/tmp/a.jpg", "sha", "image/jpeg").unwrap();
-         apply_analyze_response(
-@@ -1812,4 +1819,108 @@ mod tests {
-         assert_eq!(conflicts[0].reason, "validation_error");
-         assert!(!conflicts[0].has_remote_snapshot);
-     }
-+
-+    #[test]
-+    fn local_ready_item_without_remote_id_is_due_and_counts_in_notebook() {
-+        let conn = test_db();
-+        seed_notebook(&conn, "math");
-+
-+        let local_id = create_ready_local_item(&conn, "math", "2026-06-27");
-+
-+        let due_items = get_due_error_items(&conn).unwrap();
-+        assert_eq!(due_items.len(), 1);
-+        assert_eq!(due_items[0].id, local_id);
-+        assert!(due_items[0].remote_id.is_none());
-+
-+        let notebooks = get_error_notebooks(&conn).unwrap();
-+        assert_eq!(notebooks.len(), 1);
-+        assert_eq!(notebooks[0].due_count, 1);
-+    }
-+
-+    #[test]
-+    fn due_queue_excludes_non_ready_and_deleted_items() {
-+        let conn = test_db();
-+        seed_notebook(&conn, "math");
-+
-+        insert_error_item_with_status(
-+            &conn,
-+            "pending-item",
-+            "math",
-+            "pending_analysis",
-+            "2026-06-27",
-+            None,
-+        );
-+        insert_error_item_with_status(
-+            &conn,
-+            "analyzing-item",
-+            "math",
-+            "analyzing",
-+            "2026-06-27",
-+            None,
-+        );
-+        insert_error_item_with_status(
-+            &conn,
-+            "failed-item",
-+            "math",
-+            "analyze_failed",
-+            "2026-06-27",
-+            None,
-+        );
-+        insert_error_item_with_status(
-+            &conn,
-+            "deleted-item",
-+            "math",
-+            "ready",
-+            "2026-06-27",
-+            Some("2026-06-27 13:00:00"),
-+        );
-+        insert_error_item_with_status(
-+            &conn,
-+            "ready-item",
-+            "math",
-+            "ready",
-+            "2026-06-27",
-+            None,
-+        );
-+
-+        let due_items = get_due_error_items(&conn).unwrap();
-+        assert_eq!(due_items.len(), 1);
-+        assert_eq!(due_items[0].id, "ready-item");
-+
-+        let notebooks = get_error_notebooks(&conn).unwrap();
-+        assert_eq!(notebooks[0].due_count, 1);
-+    }
-+
-+    #[test]
-+    fn rating_local_ready_item_updates_local_state_and_pending_create_without_review_op() {
-+        let conn = test_db();
-+        seed_notebook(&conn, "math");
-+
-+        let local_id = create_ready_local_item(&conn, "math", "2026-06-27");
-+        let result = rate_error_item(&conn, &local_id, 5, 42).unwrap();
-+
-+        let item = get_error_item(&conn, &local_id).unwrap().unwrap();
-+        assert_eq!(item.repetitions, result.repetitions);
-+        assert_eq!(item.interval, result.interval);
-+        assert_eq!(item.mastery_level, result.mastery_level);
-+        assert_eq!(item.next_review, result.next_review);
-+
-+        let review_log_count: i64 = conn
-+            .query_row(
-+                "SELECT COUNT(*) FROM error_review_logs WHERE error_item_id = ?1",
-+                params![local_id],
-+                |row| row.get(0),
-+            )
-+            .unwrap();
-+        assert_eq!(review_log_count, 1);
-+
-+        let ops = get_pending_sync_ops(&conn).unwrap();
-+        assert_eq!(ops.len(), 1);
-+        assert_eq!(ops[0].action, "create");
-+        assert_eq!(ops[0].payload["repetitions"], json!(result.repetitions));
-+        assert_eq!(ops[0].payload["interval"], json!(result.interval));
-+        assert_eq!(ops[0].payload["masteryLevel"], json!(result.mastery_level));
-+        assert_eq!(ops[0].payload["nextReview"], json!(result.next_review));
-+        assert!(ops.iter().all(|op| op.action != "review"));
-+    }
- }
-diff --git a/ERROR_SYNC_PROTOCOL.md b/ERROR_SYNC_PROTOCOL.md
-new file mode 100644
-index 0000000..12d7ff2
---- /dev/null
-+++ b/ERROR_SYNC_PROTOCOL.md
-@@ -0,0 +1,1000 @@
-+# Recall 错题同步协议文档
-+
-+> 当前文档基于 `hamburger-vocab` 客户端当前实现整理，用于和 `wrong-notebook` 服务端对齐接口协议、同步状态、冲突处理和后续改造方向。
-+
-+## 1. 文档目标
-+
-+本文件用于固化 Recall / 小书灵当前错题同步系统的客户端协议。
-+
-+目标不是描述一个理想设计，而是先准确记录当前客户端已经实现的同步模型，方便后续检查服务端 `wrong-notebook` 是否完全匹配。
-+
-+当前客户端已经从“简单同步字段”升级为：
-+
-+```txt
-+本地 op log + push/pull 同步 + cursor 增量拉取 + 服务端快照 + 冲突表
-+```
-+
-+这套机制的目标是支持：
-+
-+- 本地优先的错题编辑体验
-+- 服务端统一存储和多端同步
-+- 网络失败后的可恢复同步
-+- 多端编辑时的版本冲突处理
-+- AI 分析完成后再形成可同步错题
-+- 图片本地路径和远端图片信息的兼容
-+
-+## 2. 当前代码位置
-+
-+### 前端 API
-+
-+```txt
-+src/api/errorItem.ts
-+```
-+
-+负责把 Vue 页面调用转成 Tauri command。
-+
-+主要方法：
-+
-+```ts
-+getErrorNotebooks()
-+getErrorItems(notebookId?)
-+getDueErrorItems()
-+createErrorDraft(imageBase64, mimeType, notebookId?)
-+analyzeErrorDraft(id)
-+saveErrorItem(item)
-+rateErrorItem(id, quality, durationSeconds)
-+syncErrorItems()
-+getErrorSyncConflicts()
-+resolveErrorSyncConflictKeepLocal(localItemId)
-+resolveErrorSyncConflictAcceptRemote(localItemId)
-+```
-+
-+### 前端 Store
-+
-+```txt
-+src/stores/useErrorNotebookStore.ts
-+```
-+
-+负责错题本、错题、登录状态、同步状态、冲突列表的统一加载。
-+
-+关键点：
-+
-+- `syncRemote()` 防止重复同步请求。
-+- `refresh(force, pullRemote)` 会在登录状态有效时自动同步。
-+- 同步失败时保留本地缓存展示。
-+- 同步失败后重新读取登录状态，避免 token 失效后 UI 仍停留在登录态。
-+
-+### Tauri Command
-+
-+```txt
-+src-tauri/src/commands/error_item.rs
-+src-tauri/src/commands/mobile.rs
-+```
-+
-+`error_item.rs` 负责错题本地操作、AI 分析、同步 push/pull、冲突解决。
-+
-+`mobile.rs` 负责登录、token refresh、退出登录和 auth status。
-+
-+### 本地数据库 Repo
-+
-+```txt
-+src-tauri/src/db/error_repo.rs
-+src-tauri/src/db/migration.rs
-+src-tauri/src/db/models.rs
-+```
-+
-+`error_repo.rs` 是错题同步核心。
-+
-+`migration.rs` 当前错题同步 schema version 为：
-+
-+```rust
-+const ERROR_SYNC_SCHEMA_VERSION: &str = "4";
-+```
-+
-+## 3. 核心同步模型
-+
-+当前同步模型以本地 SQLite 为中心。
-+
-+本地用户操作不会直接假设服务端成功，而是先进入本地状态或本地 op log。
-+
-+整体链路：
-+
-+```txt
-+用户创建 / 编辑 / 复习错题
-+  ↓
-+写入本地 SQLite
-+  ↓
-+生成或更新 error_sync_ops
-+  ↓
-+手动或自动触发 sync_error_items
-+  ↓
-+POST /api/mobile/sync/push
-+  ↓
-+处理 acceptedOps / conflictedOps
-+  ↓
-+GET /api/mobile/sync/pull?cursor=...
-+  ↓
-+更新本地 notebooks / errorItems / deletedIds
-+  ↓
-+保存 last_error_sync_cursor
-+```
-+
-+## 4. 本地数据表
-+
-+### 4.1 sync_state
-+
-+通用 key-value 状态表。
-+
-+用于保存：
-+
-+```txt
-+server_url
-+access_token
-+refresh_token
-+access_expires_at
-+mobile_user
-+device_id
-+last_error_sync_cursor
-+error_sync_schema_version
-+```
-+
-+补充说明：
-+
-+- `last_error_sync_cursor` 是当前正式使用的增量同步游标。
-+- `last_error_sync_at` 仍可能出现在旧数据清理逻辑里，但已经不是当前 push/pull 协议的一部分。
-+
-+### 4.2 error_notebooks
-+
-+错题本表。
-+
-+当前客户端认为错题本来自服务端同步，本地创建错题时要求 notebook 已存在。
-+
-+字段：
-+
-+```txt
-+id
-+remote_id
-+name
-+created_at
-+updated_at
-+```
-+
-+当前实现里 `id = remote_id`。
-+
-+### 4.3 error_items
-+
-+错题主表。
-+
-+关键字段：
-+
-+```txt
-+id                    本地 ID
-+remote_id             服务端 ID，可为空
-+notebook_id           所属错题本 ID
-+question_text         题目
-+answer_text           标准答案
-+analysis              AI 解析
-+wrong_answer_text     错误答案
-+mistake_analysis      错因分析
-+mistake_status        错题状态
-+knowledge_points      知识点 JSON 字符串
-+user_notes            用户笔记
-+mastery_level         掌握等级
-+ef                    SM-2 ease factor
-+interval              复习间隔
-+repetitions           复习次数
-+next_review           下次复习日期
-+analysis_status       AI 分析状态
-+remote_version        服务端版本号
-+server_snapshot_json  服务端快照
-+deleted_at            软删除时间
-+```
-+
-+### 4.4 error_item_images
-+
-+错题图片表。
-+
-+字段：
-+
-+```txt
-+id
-+error_item_id
-+local_path
-+remote_key
-+remote_url
-+sha256
-+mime_type
-+created_at
-+updated_at
-+```
-+
-+设计意图：
-+
-+- 本地刚创建时优先使用 `local_path`。
-+- 服务端分析或同步成功后补充 `remote_key` / `remote_url`。
-+- 如果本地图片丢失，前端可回退到 `remote_url`。
-+
-+### 4.5 error_sync_ops
-+
-+本地同步操作日志。
-+
-+字段：
-+
-+```txt
-+op_id
-+entity_type
-+action
-+local_item_id
-+remote_item_id
-+base_version
-+payload_json
-+client_timestamp
-+status
-+created_at
-+updated_at
-+```
-+
-+当前支持的 action：
-+
-+```txt
-+create
-+update
-+review
-+delete
-+```
-+
-+当前支持的 status：
-+
-+```txt
-+pending
-+conflicted
-+```
-+
-+服务端接受后，本地直接删除对应 op。
-+
-+### 4.6 error_sync_conflicts
-+
-+同步冲突表。
-+
-+字段：
-+
-+```txt
-+id
-+local_item_id
-+op_id
-+server_version
-+server_snapshot_json
-+error_code
-+created_at
-+updated_at
-+```
-+
-+用于记录服务端拒绝的 op。
-+
-+当前做法不是由前端直接解析服务端 `error_code`，而是 Tauri 侧先把冲突归一化后再返回前端：
-+
-+```txt
-+VERSION_CONFLICT  -> version_conflict
-+VALIDATION_ERROR  -> validation_error
-+NOT_FOUND         -> not_found
-+其他              -> unknown
-+```
-+
-+补充说明：
-+
-+- 如果服务端没有明确返回 `VERSION_CONFLICT`，但带回了有效 `serverSnapshot`，客户端也会按 `version_conflict` 处理。
-+- 前端实际消费的字段是：
-+
-+```txt
-+reason
-+hasRemoteSnapshot
-+```
-+
-+## 5. 错题生命周期
-+
-+### 5.1 创建草稿
-+
-+前端调用：
-+
-+```ts
-+createErrorDraft(imageBase64, mimeType, notebookId)
-+```
-+
-+Tauri command：
-+
-+```rust
-+create_error_draft
-+```
-+
-+本地行为：
-+
-+1. 解析图片 base64。
-+2. 计算 sha256。
-+3. 保存图片到 app data 目录。
-+4. 创建 `error_items` 记录。
-+5. 创建 `error_item_images` 记录。
-+6. `analysis_status = pending_analysis`。
-+
-+此时不会生成同步 op。
-+
-+原因：草稿还不是一条完整可同步错题。
-+
-+### 5.2 AI 分析中
-+
-+前端调用：
-+
-+```ts
-+analyzeErrorDraft(id)
-+```
-+
-+本地先标记：
-+
-+```txt
-+analysis_status = analyzing
-+```
-+
-+然后请求服务端：
-+
-+```txt
-+POST /api/mobile/error-items/analyze
-+```
-+
-+请求体当前结构：
-+
-+```json
-+{
-+  "localId": "本地错题 ID",
-+  "notebookId": "错题本 ID",
-+  "imageBase64": "图片 base64",
-+  "mimeType": "image/jpeg",
-+  "language": "zh"
-+}
-+```
-+
-+注意：当前客户端这里的 `mimeType` 暂时写死为 `image/jpeg`。后续建议改为从 `error_item_images.mime_type` 读取真实值。
-+
-+### 5.3 AI 分析成功
-+
-+服务端返回：
-+
-+```json
-+{
-+  "questionText": "题目",
-+  "answerText": "答案",
-+  "analysis": "解析",
-+  "wrongAnswerText": "错误答案",
-+  "mistakeAnalysis": "错因分析",
-+  "mistakeStatus": "状态",
-+  "knowledgePoints": ["知识点1", "知识点2"],
-+  "masteryLevel": 0,
-+  "image": {
-+    "remoteKey": "远端图片 key",
-+    "url": "/或完整图片 URL",
-+    "sha256": "图片 hash",
-+    "contentType": "image/jpeg",
-+    "size": 12345
-+  }
-+}
-+```
-+
-+本地行为：
-+
-+1. 更新错题内容。
-+2. `analysis_status = ready`。
-+3. 更新图片远端信息。
-+4. 生成 `create` op。
-+
-+### 5.4 AI 分析失败
-+
-+如果服务端返回失败响应，客户端会尝试解析：
-+
-+```json
-+{
-+  "code": "错误码",
-+  "message": "错误信息",
-+  "image": {
-+    "remoteKey": "远端图片 key",
-+    "url": "图片 URL",
-+    "sha256": "图片 hash",
-+    "contentType": "image/jpeg",
-+    "size": 12345
-+  }
-+}
-+```
-+
-+本地行为：
-+
-+1. `analysis_status = analyze_failed`。
-+2. 保留本地图片和可能的远端图片信息。
-+3. 清理该错题的 create/update sync op。
-+4. 清理该错题的 sync conflict。
-+
-+设计意图：分析失败的错题不是完整错题，不应进入 create/update 同步队列。
-+
-+### 5.5 编辑错题
-+
-+前端调用：
-+
-+```ts
-+saveErrorItem(...)
-+```
-+
-+本地行为：
-+
-+1. 更新题目、答案、解析、错因、笔记、知识点。
-+2. 如果 `analysis_status != ready`，清理 create/update 同步状态，不生成 op。
-+3. 如果已有 `remote_id`，生成或更新 `update` op。
-+4. 如果没有 `remote_id`，生成或更新 `create` op。
-+
-+特殊规则：
-+
-+如果本地已有 pending `create` op，再次编辑不会创建新的 `update` op，而是直接更新 pending `create` 的 payload。
-+
-+### 5.6 复习错题
-+
-+前端调用：
-+
-+```ts
-+rateErrorItem(id, quality, durationSeconds)
-+```
-+
-+本地行为：
-+
-+1. 使用 SM-2 计算新的 `ef`、`interval`、`repetitions`、`next_review`。
-+2. 写入 `error_review_logs`。
-+3. 更新 `mastery_level`。
-+4. 如果该错题已有 `remote_id`，生成 `review` op。
-+
-+注意：当前实现中，没有 `remote_id` 的本地 ready 错题不会单独生成 `review` op。
-+
-+但本地复习仍然会：
-+
-+- 更新本地 `ef` / `interval` / `repetitions` / `next_review`
-+- 写入 `error_review_logs`
-+- 刷新现有 pending `create` op 的 payload，让后续首次同步携带最新复习状态
-+
-+## 6. 同步流程
-+
-+### 6.1 登录和 token 刷新
-+
-+登录接口：
-+
-+```txt
-+POST /api/mobile/auth/login
-+```
-+
-+请求体：
-+
-+```json
-+{
-+  "email": "用户邮箱",
-+  "password": "用户密码"
-+}
-+```
-+
-+响应体：
-+
-+```json
-+{
-+  "accessToken": "access token",
-+  "refreshToken": "refresh token",
-+  "expiresIn": 3600,
-+  "user": {
-+    "id": "用户 ID"
-+  }
-+}
-+```
-+
-+客户端会保存：
-+
-+```txt
-+server_url
-+access_token
-+refresh_token
-+access_expires_at
-+mobile_user
-+```
-+
-+如果 server url 或 user id 变化，客户端会清空远端缓存：
-+
-+```txt
-+error_sync_conflicts
-+error_sync_ops
-+error_review_logs
-+error_item_images
-+error_items
-+error_notebooks
-+last_error_sync_cursor
-+```
-+
-+刷新接口：
-+
-+```txt
-+POST /api/mobile/auth/refresh
-+```
-+
-+请求体：
-+
-+```json
-+{
-+  "refreshToken": "refresh token"
-+}
-+```
-+
-+响应体：
-+
-+```json
-+{
-+  "accessToken": "new access token",
-+  "refreshToken": "new refresh token",
-+  "expiresIn": 3600
-+}
-+```
-+
-+客户端会在 access token 过期前 30 秒主动视为过期。
-+
-+如果请求返回 401，客户端会自动 refresh 后重试一次。
-+
-+### 6.2 Push
-+
-+客户端请求：
-+
-+```txt
-+POST /api/mobile/sync/push
-+Authorization: Bearer <access_token>
-+```
-+
-+请求体：
-+
-+```json
-+{
-+  "deviceId": "本地设备 ID",
-+  "ops": [
-+    {
-+      "opId": "本地 op ID",
-+      "entityType": "error_item",
-+      "action": "create | update | review | delete",
-+      "localItemId": "本地错题 ID",
-+      "remoteItemId": "远端错题 ID，可为空",
-+      "baseVersion": 1,
-+      "payload": {},
-+      "clientTimestamp": "2026-06-27 12:00:00"
-+    }
-+  ]
-+}
-+```
-+
-+服务端响应：
-+
-+```json
-+{
-+  "acceptedOps": [
-+    {
-+      "opId": "本地 op ID",
-+      "localItemId": "本地错题 ID",
-+      "action": "create | update | review | delete",
-+      "serverSnapshot": {
-+        "remoteId": "远端错题 ID",
-+        "localId": "本地错题 ID",
-+        "notebookId": "错题本 ID",
-+        "version": 2,
-+        "questionText": "题目",
-+        "answerText": "答案",
-+        "analysis": "解析",
-+        "wrongAnswerText": "错误答案",
-+        "mistakeAnalysis": "错因分析",
-+        "mistakeStatus": "状态",
-+        "knowledgePoints": [],
-+        "userNotes": "笔记",
-+        "masteryLevel": 0,
-+        "ef": 2.5,
-+        "interval": 1,
-+        "repetitions": 0,
-+        "nextReview": "2026-06-27",
-+        "image": {
-+          "remoteKey": "图片 key",
-+          "url": "/图片 URL",
-+          "sha256": "hash",
-+          "contentType": "image/jpeg"
-+        },
-+        "createdAt": "2026-06-27 10:00:00",
-+        "updatedAt": "2026-06-27 12:00:00"
-+      }
-+    }
-+  ],
-+  "conflictedOps": [
-+    {
-+      "opId": "本地 op ID",
-+      "localItemId": "本地错题 ID",
-+      "code": "VERSION_CONFLICT | VALIDATION_ERROR | NOT_FOUND",
-+      "serverVersion": 3,
-+      "serverSnapshot": {}
-+    }
-+  ]
-+}
-+```
-+
-+客户端处理：
-+
-+- 对 `acceptedOps`：
-+  - 如果 action 是 `delete`，本地软删除。
-+  - 如果有 `serverSnapshot`，覆盖本地工作副本。
-+  - 删除对应 conflict。
-+  - 删除对应 op。
-+
-+- 对 `conflictedOps`：
-+  - 将本地 op 标记为 `conflicted`。
-+  - 写入 `error_sync_conflicts`。
-+  - 保留本地工作副本，不覆盖用户修改。
-+
-+### 6.3 Pull
-+
-+客户端请求：
-+
-+```txt
-+GET /api/mobile/sync/pull?cursor=<last_error_sync_cursor>
-+Authorization: Bearer <access_token>
-+```
-+
-+服务端响应：
-+
-+```json
-+{
-+  "notebooks": [
-+    {
-+      "remoteId": "错题本 ID",
-+      "name": "数学错题本",
-+      "createdAt": "2026-06-27 10:00:00",
-+      "updatedAt": "2026-06-27 10:00:00"
-+    }
-+  ],
-+  "errorItems": [
-+    {
-+      "remoteId": "远端错题 ID",
-+      "localId": "本地 ID，可选",
-+      "notebookId": "错题本 ID",
-+      "version": 1,
-+      "questionText": "题目",
-+      "answerText": "答案",
-+      "analysis": "解析",
-+      "wrongAnswerText": "错误答案",
-+      "mistakeAnalysis": "错因分析",
-+      "mistakeStatus": "状态",
-+      "knowledgePoints": [],
-+      "userNotes": "笔记",
-+      "masteryLevel": 0,
-+      "ef": 2.5,
-+      "interval": 1,
-+      "repetitions": 0,
-+      "nextReview": "2026-06-27",
-+      "image": {
-+        "remoteKey": "图片 key",
-+        "url": "/图片 URL",
-+        "sha256": "hash",
-+        "contentType": "image/jpeg"
-+      },
-+      "createdAt": "2026-06-27 10:00:00",
-+      "updatedAt": "2026-06-27 12:00:00"
-+    }
-+  ],
-+  "deletedIds": ["remote-item-id"],
-+  "nextCursor": 123
-+}
-+```
-+
-+客户端处理：
-+
-+1. `notebooks`：调用 `replace_notebooks`。
-+2. `errorItems`：按 `remoteId` 或 `localId` 匹配本地错题。
-+3. 如果本地错题存在 pending/conflicted op，则只更新服务端快照，不覆盖本地工作副本。
-+4. 如果本地没有阻塞同步状态，则用远端 snapshot 覆盖本地工作副本。
-+5. `deletedIds`：如果本地没有 pending/conflicted 状态，则软删除本地错题。
-+6. 保存 `nextCursor` 到 `last_error_sync_cursor`。
-+
-+注意：当前 `notebooks` 使用 replace 语义。服务端需要保证 `/sync/pull` 返回的是当前用户完整错题本列表。如果服务端只返回增量 notebook，客户端可能误删本地 notebook。
-+
-+## 7. 冲突处理
-+
-+### 7.1 保留本地版本
-+
-+前端调用：
-+
-+```ts
-+resolveErrorSyncConflictKeepLocal(localItemId)
-+```
-+
-+注意：当前前端只会在 `reason = version_conflict` 时展示“保留本地版本 / 接受远端版本”两个操作按钮。
-+
-+对 `validation_error`、`not_found`、`unknown`，详情页只展示原因提示，不直接开放这两个 resolve 操作。
-+
-+本地行为：
-+
-+1. 读取 conflict 中的 `server_version` 和 `server_snapshot_json`。
-+2. 将本地 `remote_version` 更新为服务端版本。
-+3. 保存服务端快照。
-+4. 删除 conflict。
-+5. 删除 conflicted op。
-+6. 用当前本地工作副本生成新的 `update` op。
-+
-+效果：
-+
-+```txt
-+以服务端最新版本为 baseVersion，重新提交本地内容。
-+```
-+
-+### 7.2 接受远端版本
-+
-+前端调用：
-+
-+```ts
-+resolveErrorSyncConflictAcceptRemote(localItemId)
-+```
-+
-+同样仅适用于当前 UI 认定的真实版本冲突场景。
-+
-+本地行为：
-+
-+1. 读取 conflict 中的 `server_snapshot_json`。
-+2. 用服务端 snapshot 覆盖本地工作副本。
-+3. 删除 conflict。
-+4. 删除 conflicted op。
-+
-+效果：
-+
-+```txt
-+丢弃本地修改，接受服务端版本。
-+```
-+
-+## 8. 前端展示状态
-+
-+前端 `ErrorItem.syncStatus` 不是数据库里的单一字段，而是由本地状态动态计算出来。
-+
-+计算规则：
-+
-+```txt
-+analysis_status != ready
-+  -> pending_analysis / analyzing / analyze_failed
-+
-+存在 error_sync_conflicts
-+  -> conflict
-+
-+存在 pending error_sync_ops
-+  -> pending_sync
-+
-+否则
-+  -> synced
-+```
-+
-+当前 UI 状态文案：
-+
-+```txt
-+pending_analysis -> 待分析
-+pending_sync     -> 待同步
-+conflict         -> 有冲突
-+analyze_failed   -> 分析失败
-+synced           -> 已同步
-+其他             -> 本地保存
-+```
-+
-+## 9. 当前已验证项
-+
-+客户端当前验证结果：
-+
-+```txt
-+cargo test: 36 passed
-+npm run build: success
-+```
-+
-+同步相关测试覆盖了：
-+
-+- 旧 schema 重置为新 schema
-+- v3 到 v4 migration
-+- 清理本地无效 sync state
-+- pending create payload 合并
-+- pull 时不覆盖本地 pending 修改
-+- 远端图片 URL 保存
-+- 从 server snapshot 回填图片信息
-+- pending / analyze_failed 本地草稿不进入同步
-+- conflict reason 和 snapshot presence 展示
-+
-+## 10. 当前风险和待确认点
-+
-+### 10.1 服务端协议仍需持续对齐
-+
-+当前本地端已经按真实 `wrong-notebook` 接口做过联调和问题排查，但这份文档仍应持续和服务端实现保持同步。
-+
-+尤其需要持续确认以下接口的返回字段和错误码没有漂移：
-+
-+```txt
-+POST /api/mobile/auth/login
-+POST /api/mobile/auth/refresh
-+POST /api/mobile/error-items/analyze
-+POST /api/mobile/sync/push
-+GET  /api/mobile/sync/pull
-+```
-+
-+### 10.2 analyze 接口 mimeType 暂时写死
-+
-+当前客户端 `analyze_error_draft` 请求里：
-+
-+```json
-+{
-+  "mimeType": "image/jpeg"
-+}
-+```
-+
-+但创建草稿时已经保存真实 mime type。
-+
-+建议后续改为从 `error_item_images.mime_type` 读取。
-+
-+### 10.3 本地 ready 但未同步成功的错题允许复习
-+
-+该策略现已确认并落地：
-+
-+```txt
-+只要 analysis_status = ready，就允许本地复习。
-+同步状态只影响多端一致性，不阻断学习。
-+```
-+
-+当前约束：
-+
-+- `pending_analysis` / `analyzing` / `analyze_failed` 不进入复习。
-+- `deleted_at IS NOT NULL` 不进入复习。
-+- 本地 ready 但 `remote_id IS NULL` 的错题可以进入复习队列。
-+- 错题本 `due_count` 与复习队列使用同一套 ready / deleted 判断口径。
-+- 本地 ready 但 `remote_id IS NULL` 的错题复习后，不单独生成 `review` op，但会更新本地复习状态并刷新 pending `create` payload。
-+
-+### 10.4 notebooks 的 replace 语义需要和服务端确认
-+
-+当前客户端在 pull 时会 `replace_notebooks`。
-+
-+这要求服务端返回全量 notebooks。
-+
-+如果服务端返回增量 notebooks，客户端会误删未返回的错题本。
-+
-+### 10.5 push 接口错误响应内容较少
-+
-+当前客户端如果 push status 非 2xx，只返回：
-+
-+```txt
-+同步推送失败: <status>
-+```
-+
-+建议后续读取 response body，展示服务端错误 message，便于调试。
-+
-+### 10.6 pull 接口错误响应内容较少
-+
-+当前客户端如果 pull status 非 2xx，只返回：
-+
-+```txt
-+同步拉取失败: <status>
-+```
-+
-+### 10.7 analyze 接口耗时较长时依赖较长超时窗口
-+
-+当前共享 HTTP client 默认超时是 30 秒，但 `analyze_error_draft` 已单独把 analyze 请求放宽到 180 秒。
-+
-+这意味着：
-+
-+```txt
-+登录 / push / pull 仍保持短超时
-+analyze 单独允许更长等待时间
-+```
-+
-+如果后续 AI 分析链路继续变慢，需要同步评估：
-+
-+- 本地体验是否需要“分析中”更明确的加载提示
-+- 180 秒是否仍足够
-+- 是否要改成长任务式异步分析协议
-+
-+建议后续读取 response body，展示服务端错误 message，便于调试。
-+
-+## 11. 服务端对齐清单
-+
-+服务端 `wrong-notebook` 需要重点确认以下事项。
-+
-+### 11.1 Auth
-+
-+- [ ] `/api/mobile/auth/login` 返回 `accessToken`、`refreshToken`、`expiresIn`、`user.id`。
-+- [ ] `/api/mobile/auth/refresh` 返回新的 `accessToken`、`refreshToken`、`expiresIn`。
-+- [ ] token 过期时接口返回 401。
-+
-+### 11.2 Analyze
-+
-+- [ ] `/api/mobile/error-items/analyze` 支持 `localId`。
-+- [ ] 支持 `notebookId`。
-+- [ ] 支持 `imageBase64`。
-+- [ ] 返回 AI 分析后的结构。
-+- [ ] 返回图片远端信息 `image.remoteKey`、`image.url`、`image.sha256`、`image.contentType`。
-+- [ ] 失败时返回可解析的 `code`、`message`、`image`。
-+
-+### 11.3 Push
-+
-+- [ ] `/api/mobile/sync/push` 支持 `deviceId`。
-+- [ ] 支持 `ops[]`。
-+- [ ] 支持 `create`。
-+- [ ] 支持 `update`。
-+- [ ] 支持 `review`。
-+- [ ] 支持 `delete`。
-+- [ ] 正常处理后返回 `acceptedOps[]`。
-+- [ ] 冲突时返回 `conflictedOps[]`。
-+- [ ] accepted op 中返回 `serverSnapshot`。
-+- [ ] conflict 中返回 `serverVersion` 和 `serverSnapshot`。
-+- [ ] 版本冲突 code 使用 `VERSION_CONFLICT`。
-+- [ ] 校验失败 code 使用 `VALIDATION_ERROR`。
-+- [ ] 远端不存在 code 使用 `NOT_FOUND`。
-+
-+### 11.4 Pull
-+
-+- [ ] `/api/mobile/sync/pull` 支持 `cursor`。
-+- [ ] 返回 `notebooks`。
-+- [ ] 明确 `notebooks` 是全量还是增量。
-+- [ ] 返回 `errorItems`。
-+- [ ] 返回 `deletedIds`。
-+- [ ] 返回 `nextCursor` 或 `serverCursor`。
-+- [ ] `errorItems[].remoteId` 必填。
-+- [ ] `errorItems[].version` 必填。
-+- [ ] 图片 URL 可以是完整 URL，也可以是相对路径。
-+
-+## 12. 建议下一步
-+
-+建议按照以下顺序推进。
-+
-+### Step 1：开放服务端仓库给 CodexPro
-+
-+让 CodexPro 可以访问：
-+
-+```txt
-+/Users/caogenyan/Documents/wrong-notebook
-+```
-+
-+然后检查服务端接口实现是否和本文档匹配。
-+
-+### Step 2：修复客户端小问题
-+
-+优先修复：
-+
-+- analyze 请求 mimeType 写死问题
-+- push/pull 错误响应不展示 body 的问题
-+
-+### Step 3：确认产品策略
-+
-+确认本地 ready 但未同步成功的错题是否可以进入复习。
-+
-+建议策略：
-+
-+```txt
-+学习优先：只要 analysis_status = ready，就允许本地复习。
-+同步状态只影响多端一致性，不阻断学习。
-+```
-+
-+### Step 4：补充端到端测试
-+
-+在客户端和服务端协议确认后，补充真实端到端场景：
-+
-+- 新建错题 -> AI 分析 -> push create -> pull
-+- A 端编辑 -> B 端 pull
-+- A/B 同时编辑 -> version conflict
-+- 保留本地版本 -> 重新 push
-+- 接受远端版本 -> 本地覆盖
-+- 图片本地丢失 -> 使用 remote image url 展示
-+- token 过期 -> refresh -> retry
-+
-+## 13. 当前结论
-+
-+当前客户端错题同步已经具备正式产品同步系统的基础结构：
-+
-+```txt
-+op log 驱动
-+本地优先
-+push/pull 分离
-+cursor 增量拉取
-+server snapshot
-+版本冲突处理
-+图片远端信息同步
-+token refresh
-+```
-+
-+接下来最重要的不是继续加 UI，而是先把客户端和服务端协议完全对齐。
-+
-+该文档可以作为客户端同步协议基线。后续服务端检查完成后，需要补充“服务端实际实现结果”和“协议差异修复记录”。
-diff --git a/docs/archive/PRD_vocab_v0.2.md b/docs/archive/PRD_vocab_v0.2.md
-new file mode 100644
-index 0000000..52d1d8b
---- /dev/null
-+++ b/docs/archive/PRD_vocab_v0.2.md
-@@ -0,0 +1,368 @@
-+# 单词卡片学习系统 — 产品需求文档
-+
-+> 版本：v0.2 · 日期：2026-06-06 · 状态：草案
-+
-+---
-+
-+## 1. 产品概述
-+
-+### 1.1 一句话描述
-+
-+一款基于 Web 的单词学习应用。用户上传 txt 文件导入单词，以卡片形式逐个学习，通过间隔重复算法智能安排复习节奏，高效掌握词汇。
-+
-+### 1.2 核心价值
-+
-+- **零门槛录入**：txt 文件上传即用，无需手动添加
-+- **卡片化学习**：一次一个单词，专注不 overload
-+- **科学复习**：间隔重复算法确保在遗忘临界点提醒，避免无效重复
-+
-+### 1.3 目标用户
-+
-+- **英语学习者**：备考（四六级/考研/雅思/托福）、日常积累词汇
-+- **老师/教育者**：为学生批量导入单词表
-+- **自学者**：学习任何语言（西语、日语等）的词汇
-+
-+---
-+
-+## 2. 用户流程（核心场景）
-+
-+```
-+上传文件 → 解析预览 → 开始学习 → 看卡片 → 回忆/评分 → 算法安排下次复习
-+```
-+
-+### 场景一：首次使用
-+
-+1. 用户打开应用，看到空状态页面
-+2. 点击"上传文件"按钮，选择本地的 txt 文件
-+3. 系统解析文件，展示预览（单词数量、格式识别结果）
-+4. 用户确认导入
-+5. 自动进入学习模式，看到第一张卡片
-+
-+### 场景二：日常学习
-+
-+1. 用户打开应用，看到今日待复习数量
-+2. 点击"开始学习"进入卡片模式
-+3. 看到单词正面 → 尝试回忆 → 点击翻转
-+4. 看到释义 → 自评掌握程度（3 档）
-+5. 系统记录结果并计算下次复习时间
-+6. 进入下一张卡片
-+
-+### 场景三：复习回顾
-+
-+1. 用户在首页看到所有单词本概览
-+2. 选择某个单词本，查看统计（总词数、已掌握、待复习）
-+3. 可筛选查看"已掌握"和"待复习"的单词列表
-+
-+---
-+
-+## 3. 功能需求
-+
-+### 3.1 单词上传与解析
-+
-+| ID | 功能 | 说明 |
-+|----|------|------|
-+| F-01 | 文件上传 | 支持 .txt 格式，拖拽或点击上传 |
-+| F-02 | 格式智能解析 | 自动识别以下三种格式（详见 3.1.1） |
-+| F-03 | 预览确认 | 上传后展示解析结果（单词数、样例），用户确认后再入库 |
-+| F-04 | 重复检测 | 若单词已在词库中，提示并可选跳过或覆盖 |
-+| F-05 | 文件名作为词库名 | 上传后默认以文件名创建词库（单词本） |
-+
-+#### 3.1.1 支持的 txt 格式
-+
-+**格式 A — 纯单词列表（每行一个单词）**
-+
-+```
-+apple
-+banana
-+go
-+```
-+
-+> 系统自动通过词典 API 查询释义、音标、词形变化。
-+
-+**格式 B — 单词 + 释义**
-+
-+```
-+apple 苹果
-+go 去
-+run 跑
-+```
-+
-+> 分隔符为空格或 Tab；系统解析释义，无需额外查询。
-+
-+**格式 C — 单词 + 词形变化 + 释义**
-+
-+```
-+go went gone 去
-+run ran run 跑
-+eat ate eaten 吃
-+```
-+
-+> 系统解析词形变化（过去式、过去分词等），自动关联同一单词的不同形式在同一张卡片展示。
-+
-+**格式自动识别逻辑**
-+
-+1. 统计一行中由空格/Tab 分隔的字段数
-+2. 若均为 1 字段 → 格式 A
-+3. 若均为 2 字段 → 格式 B（第 1 字段为单词，第 2 字段为释义）
-+4. 若出现 3+ 字段 → 格式 C（第 1 字段为原形，中间字段为词形变化，最后字段为释义）
-+5. 行内格式不一致时，以简单多数为准，不一致的行单独标红提示
-+
-+### 3.2 单词卡片学习
-+
-+| ID | 功能 | 说明 |
-+|----|------|------|
-+| F-06 | 卡片翻转 | 正面显示单词（及词形变化），点击翻转显示释义 |
-+| F-07 | 发音 | 点击单词可播放发音（TTS） |
-+| F-08 | 评分按钮 | 翻转后出现三档评分按钮 |
-+| F-09 | 学习进度 | 当前第几张 / 今日共几张 |
-+| F-10 | 今日待复习 | 首页展示今日到期卡片数 |
-+| F-11 | 学习即复习 | 上传新词后，新词与到期复习词合并为当日学习队列 |
-+
-+#### 3.2.1 卡片设计
-+
-+**卡片正面**
-+
-+```
-+┌─────────────────────┐
-+│                     │
-+│        go           │
-+│    went · gone      │
-+│                     │
-+│      [🔊 发音]      │
-+│                     │
-+└─────────────────────┘
-+```
-+
-+**卡片背面**
-+
-+```
-+┌─────────────────────┐
-+│        go           │
-+│    went · gone      │
-+│                     │
-+│       去 / 走        │
-+│                     │
-+│  ┌────┐ ┌────┐ ┌──┐│
-+│  │忘了│ │模糊│ │✓ ││
-+│  └────┘ └────┘ └──┘│
-+└─────────────────────┘
-+```
-+
-+#### 3.2.2 三档评分
-+
-+| 按钮 | 含义 | 对算法的影响 |
-+|------|------|-------------|
-+| 忘了 | 完全想不起来或答错 | 重置间隔，本次学习质量 = 0 |
-+| 模糊 | 回忆起来但不确定 / 花了较长时间 | 保持或轻微增加间隔，质量 = 3 |
-+| ✓ 掌握 | 准确回忆，很确定 | 正常增加间隔，质量 = 5 |
-+
-+### 3.3 间隔重复算法
-+
-+采用 SM-2 算法的简化适配版。
-+
-+#### 3.3.1 核心参数
-+
-+| 参数 | 说明 | 初始值 |
-+|------|------|--------|
-+| EF | 难易系数 (Ease Factor)，范围 1.3 – 2.5 | 2.5 |
-+| interval | 下次复习间隔（天） | 1 |
-+| repetitions | 连续"掌握"次数 | 0 |
-+| next_review | 下次复习日期 | 当天 |
-+| quality | 每次评分质量（0、3、5） | — |
-+
-+#### 3.3.2 算法逻辑
-+
-+```
-+根据 quality 计算：
-+
-+- quality = 0（忘了）
-+  → repetitions = 0
-+  → interval = 1 天
-+  → EF -= 0.2（下限 1.3）
-+
-+- quality = 3（模糊）
-+  → repetitions = 0（归零，不累积连续掌握）
-+  → interval = 1 天
-+  → EF -= 0.15（下限 1.3）
-+
-+- quality = 5（掌握）
-+  → repetitions += 1
-+  → 若 repetitions == 1：interval = 1 天
-+  → 若 repetitions == 2：interval = 6 天
-+  → 若 repetitions >= 3：interval = CEIL(interval * EF)
-+  → EF += 0.1（上限 2.5）
-+
-+next_review = DATE('now', '+' || interval || ' days')
-+```
-+
-+#### 3.3.3 每日学习队列排序
-+
-+1. 所有 `next_review <= today` 的卡片
-+2. 按 `ef` 升序（难的优先）
-+3. 同 `ef` 按 `next_review` 升序（到期最早的优先）
-+4. 同一天到期的，新词排在复习词后面
-+5. 上限：每天最多学习 50 张卡片（可配置）
-+
-+### 3.4 数据统计
-+
-+| ID | 功能 | 说明 |
-+|----|------|------|
-+| F-12 | 词库总览 | 每个词库的单词总数、已掌握数、待复习数 |
-+| F-13 | 学习详情 | 每日学习记录条数、掌握率趋势 |
-+| F-14 | 词库管理 | 可删除词库、清空已完成 |
-+| F-15 | 导出 | 将已掌握的单词导出为 txt |
-+
-+#### 3.4.1 统计看板设计
-+
-+首页内容：
-+
-+- **今日待复习**：大数字展示（到期卡片数）
-+- **词库列表**：卡片式，显示 词库名 / 总数 / 掌握数 / 进度条
-+- **快捷入口**：开始今日学习 / 上传新词库
-+
-+### 3.5 数据管理
-+
-+| ID | 功能 | 说明 |
-+|----|------|------|
-+| F-16 | 持久化 | 所有数据存储在浏览器 localStorage 中的 sql.js 数据库快照 |
-+| F-17 | 数据备份 | 支持将数据库文件（.sqlite）下载到本地 |
-+| F-18 | 数据恢复 | 支持上传之前下载的 .sqlite 文件恢复数据 |
-+| F-19 | 搜索 | 在词库内搜索单词 |
-+
-+---
-+
-+## 4. UI/UX 设计准则
-+
-+### 4.1 设计风格
-+
-+- **安静、专注**：大留白、低干扰、中性色为主
-+- **卡片为核心**：卡片是页面上唯一需要聚焦的元素
-+- **移动优先响应式**：同时适配桌面和手机端
-+
-+### 4.2 页面结构
-+
-+| 页面 | 路由 | 内容 |
-+|------|------|------|
-+| 首页 | `/` | 今日待复习数、词库列表、上传按钮、统计概览 |
-+| 学习页 | `/study?deckId=xxx` | 全屏卡片、翻转按钮、评分按钮、进度条 |
-+| 词库详情页 | `/deck/:id` | 单词列表、筛选（已掌握/待复习）、搜索框 |
-+
-+### 4.3 交互细节
-+
-+- 卡片翻转支持点击和键盘快捷键（空格/Enter）
-+- 评分按钮支持快捷键（1=忘了，2=模糊，3=掌握）
-+- 学习完成后展示当日小结（学了多少、掌握率）
-+- 空状态时展示引导文案和示意插画
-+
-+### 4.4 配色参考（提议）
-+
-+- 背景：`#fafafa`
-+- 卡片背景：白色，圆角 12px，轻微阴影
-+- 主色：`#2563eb`（蓝色，用于按钮和链接）
-+- 忘了：`#ef4444`（红色）
-+- 模糊：`#f59e0b`（黄色/琥珀色）
-+- 掌握：`#22c55e`（绿色）
-+
-+---
-+
-+## 5. 数据库设计（SQLite）
-+
-+### 5.1 词库表（`decks`）
-+
-+```sql
-+CREATE TABLE decks (
-+    id          TEXT PRIMARY KEY,     -- UUID
-+    name        TEXT NOT NULL,        -- 词库名称（默认文件名）
-+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-+);
-+```
-+
-+### 5.2 单词卡片表（`cards`）
-+
-+```sql
-+CREATE TABLE cards (
-+    id            TEXT PRIMARY KEY,           -- UUID
-+    deck_id       TEXT NOT NULL,              -- 所属词库 ID
-+    word          TEXT NOT NULL,              -- 单词（原形）
-+    inflections   TEXT DEFAULT '',            -- 词形变化，JSON 数组字符串，如 '["went","gone"]'
-+    definition    TEXT DEFAULT '',            -- 释义
-+    ef            REAL NOT NULL DEFAULT 2.5,  -- 难易系数 1.3–2.5
-+    interval      INTEGER NOT NULL DEFAULT 1, -- 当前间隔（天）
-+    repetitions   INTEGER NOT NULL DEFAULT 0, -- 连续掌握次数
-+    next_review   TEXT NOT NULL DEFAULT (date('now')), -- 下次复习日期
-+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-+    last_review_at TEXT,                      -- 上次复习时间
-+
-+    FOREIGN KEY (deck_id) REFERENCES decks(id) ON DELETE CASCADE
-+);
-+
-+CREATE INDEX idx_cards_next_review ON cards(next_review);
-+CREATE INDEX idx_cards_deck_id ON cards(deck_id);
-+```
-+
-+### 5.3 学习记录表（`review_logs`）
-+
-+```sql
-+CREATE TABLE review_logs (
-+    id            TEXT PRIMARY KEY,     -- UUID
-+    card_id       TEXT NOT NULL,        -- 对应卡片 ID
-+    reviewed_at   TEXT NOT NULL DEFAULT (datetime('now')),
-+    quality       INTEGER NOT NULL,     -- 评分 (0/3/5)
-+    ef_before     REAL NOT NULL,
-+    ef_after      REAL NOT NULL,
-+
-+    FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
-+);
-+
-+CREATE INDEX idx_review_logs_card_id ON review_logs(card_id);
-+```
-+
-+---
-+
-+## 6. 技术方案
-+
-+| 维度 | 选择 |
-+|------|------|
-+| 框架 | Vue 3 + Vite |
-+| 路由 | Vue Router 4 |
-+| 状态管理 | Pinia |
-+| 本地数据库 | sql.js（SQLite WebAssembly，持久化到 localStorage） |
-+| 样式 | Tailwind CSS |
-+| 发音 | Web Speech API（SpeechSynthesisUtterance） |
-+| 词典 API | 可选：Free Dictionary API 或本地词典数据 |
-+| 部署 | Vercel / Netlify / GitHub Pages |
-+
-+### 6.1 数据持久化策略
-+
-+sql.js 将 SQLite 数据库加载到内存中操作，通过以下方式持久化：
-+
-+```
-+启动 → 从 localStorage 读取 DB 快照（Uint8Array）
-+      → 加载到 sql.js 内存
-+      → 正常操作（增删改查）
-+      → 每次写操作后，将内存 DB 导出为 Uint8Array
-+      → 写入 localStorage
-+```
-+
-+> MVP 暂不涉及自动文件同步。用户可通过"下载 .sqlite 文件"手动备份。
-+
-+---
-+
-+## 7. 版本规划
-+
-+| 版本 | 功能 | 目标 |
-+|------|------|------|
-+| MVP v0.1 | 文件上传 + 卡片学习 + 间隔重复 + 今日统计 | 核心闭环可用 |
-+| v0.2 | 键盘快捷键 + 发音 + 搜索 + 数据导入导出 | 提升效率 |
-+| v0.3 | 学习记录趋势图 + 多词库管理 | 管理与洞察 |
-+| v0.4 | 自定义评分档位 + 浏览器通知提醒 | 个性化 |
-+| v1.0 | 暗色模式 + PWA（离线可用 + 安装到桌面） | 完善体验 |
-+
-+---
-+
-+## 8. 开放问题 / 待讨论
-+
-+- 纯单词列表（格式 A）是否需要联网查询释义？默认开启，可选关闭
-+- 是否支持多语言（不只是英语）？可以，TTS 语言自动匹配
-+- 手机端的触摸交互：左右滑动切换卡片 vs 点击翻转 + 点击评分
-+- 是否希望加入词根词缀、例句等额外信息？（可在 v0.3+ 考虑）
 diff --git a/.ai-bridge/agent-status.md b/.ai-bridge/agent-status.md
-new file mode 100644
-index 0000000..c5290b1
---- /dev/null
+index c5290b1..59782a4 100644
+--- a/.ai-bridge/agent-status.md
 +++ b/.ai-bridge/agent-status.md
-@@ -0,0 +1,45 @@
-+# Agent Status
-+
-+## Task
-+
-+归档 PRD 并允许本地 ready 错题先复习
-+
-+## Status
-+
-+completed
-+
-+## Files touched
-+
-+- `.ai-bridge/codex-report.md`
-+- `.ai-bridge/agent-status.md`
-+- `.ai-bridge/codex-status.md`
-+- `.ai-bridge/execution-log.jsonl`
-+- `.ai-bridge/implementation-diff.patch`
-+- `.ai-bridge/session-log.jsonl`
-+- `ERROR_SYNC_PROTOCOL.md`
-+- `docs/archive/PRD_vocab_v0.2.md`
-+- `src-tauri/src/db/error_repo.rs`
-+
-+## Checks run
-+
-+- `git show HEAD:PRD.md`
-+- `git diff -- src-tauri/src/db/error_repo.rs ERROR_SYNC_PROTOCOL.md docs/archive/PRD_vocab_v0.2.md`
-+- `cargo test`
-+- `git status --short`
-+
-+## Results
-+
-+- 已将旧 `PRD.md` 完整归档到 `docs/archive/PRD_vocab_v0.2.md`。
-+- 已允许本地 `ready` 且到期、但 `remote_id` 为空的错题进入复习队列。
-+- 已让错题本 `due_count` 与复习队列的 ready / deleted 判断保持一致。
-+- 已让无 `remote_id` 的本地复习继续只保留 `create` op，同时刷新其 payload 以带上最新 SM-2 字段。
-+- `cargo test` 通过，39 个测试全部通过。
-+
-+## Blockers
-+
-+无
-+
-+## Review notes
-+
-+- 建议重点 Review：是否接受“pending op / conflict 不再阻断本地复习”的实现口径。
-+- 如果后续服务端联调需要更强约束，可再单独补一轮 create 后 review 合并策略说明。
+@@ -2,7 +2,7 @@
+ 
+ ## Task
+ 
+-归档 PRD 并允许本地 ready 错题先复习
++错题复习页面 UI 美化改造
+ 
+ ## Status
+ 
+@@ -12,34 +12,30 @@ completed
+ 
+ - `.ai-bridge/codex-report.md`
+ - `.ai-bridge/agent-status.md`
+-- `.ai-bridge/codex-status.md`
+ - `.ai-bridge/execution-log.jsonl`
+ - `.ai-bridge/implementation-diff.patch`
+-- `.ai-bridge/session-log.jsonl`
+-- `ERROR_SYNC_PROTOCOL.md`
+-- `docs/archive/PRD_vocab_v0.2.md`
+-- `src-tauri/src/db/error_repo.rs`
++- `src/pages/ErrorReviewPage.vue`
+ 
+ ## Checks run
+ 
+-- `git show HEAD:PRD.md`
+-- `git diff -- src-tauri/src/db/error_repo.rs ERROR_SYNC_PROTOCOL.md docs/archive/PRD_vocab_v0.2.md`
+-- `cargo test`
+-- `git status --short`
++- `npm run build`
++- `npx vite --host 127.0.0.1 --port 4173`
++- 本地 in-app browser 截图检查
+ 
+ ## Results
+ 
+-- 已将旧 `PRD.md` 完整归档到 `docs/archive/PRD_vocab_v0.2.md`。
+-- 已允许本地 `ready` 且到期、但 `remote_id` 为空的错题进入复习队列。
+-- 已让错题本 `due_count` 与复习队列的 ready / deleted 判断保持一致。
+-- 已让无 `remote_id` 的本地复习继续只保留 `create` op，同时刷新其 payload 以带上最新 SM-2 字段。
+-- `cargo test` 通过，39 个测试全部通过。
++- 已重构 `ErrorReviewPage.vue` 的整体结构和样式，使其更贴近设计稿和错题本现有视觉语言。
++- 已将“展开答案”按钮提升到题目 hero card 内，并把评分区改成底部固定浮层。
++- 已根据补充截图继续压缩未展开态桌面布局，缩小版心、增大题图相对占比、减少 CTA 横向拉伸和装饰占位。
++- 已补充错因/笔记空状态，并保留现有图片 fallback、RichText、评分 API、完成态逻辑。
++- `npm run build` 通过。
++- 纯 Vite 预览环境无法拿到 Tauri 真实错题数据，因此浏览器侧只能确认静态壳层和完成态顶部，不适合完整验证真实复习流。
+ 
+ ## Blockers
+ 
+-无
++- 真实错题数据依赖 Tauri 环境；当前纯浏览器预览无法完整跑到带题目数据的复习态。
+ 
+ ## Review notes
+ 
+-- 建议重点 Review：是否接受“pending op / conflict 不再阻断本地复习”的实现口径。
+-- 如果后续服务端联调需要更强约束，可再单独补一轮 create 后 review 合并策略说明。
++- 建议 ChatGPT review 重点看：视觉层次、底部评分区是否符合设计稿，以及是否需要单独补一个 preview/mock 模式方便前端迭代。
++- 当前这轮只动了 UI，没有碰复习业务逻辑。
 diff --git a/.ai-bridge/codex-report.md b/.ai-bridge/codex-report.md
-new file mode 100644
-index 0000000..e3a80e4
---- /dev/null
+index e3a80e4..c3d31ca 100644
+--- a/.ai-bridge/codex-report.md
 +++ b/.ai-bridge/codex-report.md
-@@ -0,0 +1,87 @@
-+# Codex 执行报告
-+
-+> 本文件由本地 Codex 在完成 `.ai-bridge/current-plan.md` 后填写。不要删除历史报告；如需要保留多次报告，可复制为 `codex-report-YYYYMMDD-HHMM.md`。
-+
-+## 1. 任务标题
-+
-+归档 PRD 并允许本地 ready 错题先复习
-+
-+## 2. 执行摘要
-+
-+- 已将旧 `PRD.md` 的内容完整归档到 `docs/archive/PRD_vocab_v0.2.md`。
-+- 已修改错题 repo 逻辑：本地 `analysis_status = 'ready'` 且到期的错题，即使 `remote_id` 为空，也可以进入复习队列。
-+- 已同步更新错题本 `due_count` 统计口径，使其与复习队列保持一致。
-+- 已补充 Rust repo 层测试，覆盖本地 ready 未同步可复习、非 ready / deleted 不可复习、本地复习更新 SM-2 与 review log、且不新增错误 review op。
-+- 已更新 `ERROR_SYNC_PROTOCOL.md`，将该策略从待确认改为已确认实现。
-+- 已运行 `cargo test`，39 个测试全部通过。
-+
-+## 3. 修改文件
-+
-+```txt
+@@ -4,84 +4,97 @@
+ 
+ ## 1. 任务标题
+ 
+-归档 PRD 并允许本地 ready 错题先复习
++错题复习页面 UI 美化改造
+ 
+ ## 2. 执行摘要
+ 
+-- 已将旧 `PRD.md` 的内容完整归档到 `docs/archive/PRD_vocab_v0.2.md`。
+-- 已修改错题 repo 逻辑：本地 `analysis_status = 'ready'` 且到期的错题，即使 `remote_id` 为空，也可以进入复习队列。
+-- 已同步更新错题本 `due_count` 统计口径，使其与复习队列保持一致。
+-- 已补充 Rust repo 层测试，覆盖本地 ready 未同步可复习、非 ready / deleted 不可复习、本地复习更新 SM-2 与 review log、且不新增错误 review op。
+-- 已更新 `ERROR_SYNC_PROTOCOL.md`，将该策略从待确认改为已确认实现。
+-- 已运行 `cargo test`，39 个测试全部通过。
++- 已按当前设计稿方向重构 `src/pages/ErrorReviewPage.vue` 的视觉层，统一到错题列表页已有的白底、浅蓝渐变、圆角描边、柔和阴影语言。
++- 已把 header 改为返回按钮 + 标题/副标题 + 进度胶囊，并补上数字进度条视觉。
++- 已把题目区改造成 hero card：保留图片 fallback、题干、知识点、展开答案逻辑，同时加入 `今日待复习`、`Lv.` pill 和 CSS 几何装饰。
++- 已把答案区域改造成分段 tabs 大卡片，补充 `错因与笔记` 的空状态，并把评分区改成底部固定浮层。
++- 已根据补充截图继续收紧“未展开答案”态的桌面版心，缩短 hero 卡横向拉伸、提高题卡密度，并把展开按钮控制在更像移动学习卡的尺寸。
++- 已完成 `npm run build` 验证。
++- 本轮没有改复习算法、同步协议、Tauri command、数据库或 API 调用。
+ 
+ ## 3. 修改文件
+ 
+ ```txt
+-.ai-bridge/agent-status.md
+ .ai-bridge/codex-report.md
+-.ai-bridge/codex-status.md
 +.ai-bridge/agent-status.md
-+.ai-bridge/codex-report.md
-+.ai-bridge/codex-status.md
-+.ai-bridge/execution-log.jsonl
-+.ai-bridge/implementation-diff.patch
-+.ai-bridge/session-log.jsonl
-+ERROR_SYNC_PROTOCOL.md
-+docs/archive/PRD_vocab_v0.2.md
-+src-tauri/src/db/error_repo.rs
-+```
+ .ai-bridge/execution-log.jsonl
+ .ai-bridge/implementation-diff.patch
+-.ai-bridge/session-log.jsonl
+-ERROR_SYNC_PROTOCOL.md
+-docs/archive/PRD_vocab_v0.2.md
+-src-tauri/src/db/error_repo.rs
++src/pages/ErrorReviewPage.vue
+ ```
+ 
+ ## 4. 核心实现说明
+ 
+-本次实现分为两部分。
+-
+-PRD 归档：
+-
+-- 按已确认决策，将旧 `PRD.md` 的历史内容归档到 `docs/archive/PRD_vocab_v0.2.md`。
+-- 当前工作区仍保留 `PRD.md` 的删除状态，但旧内容已不再丢失。
+-
+-错题复习逻辑：
+-
+-- `src-tauri/src/db/error_repo.rs` 的 `get_due_error_items` 已移除 `remote_id IS NOT NULL` 限制。
+-- 同时移除了基于 `error_sync_ops` / `error_sync_conflicts` 的复习队列阻断，让同步状态不再挡住本地学习。
+-- 错题本 `due_count` 统计同步移除 `remote_id IS NOT NULL` 限制，只按 `ready`、`deleted_at`、`next_review` 判断。
+-- `rate_error_item` 在无 `remote_id` 时仍不创建独立 `review` op，但会刷新现有 pending `create` op 的 payload，让后续首次同步携带最新的 SM-2 结果。
+-
+-新增测试覆盖：
+-
+-- 本地 ready 且 `remote_id IS NULL` 会出现在 `get_due_error_items`，并计入 `due_count`。
+-- `pending_analysis` / `analyzing` / `analyze_failed` / `deleted` 不会进入复习队列。
+-- 无 `remote_id` 的 ready 错题复习后会更新本地复习字段、写入 `error_review_logs`、并保持只有 `create` op。
++本次只改 UI 呈现层，主要集中在 `src/pages/ErrorReviewPage.vue`。
 +
-+## 4. 核心实现说明
++我保留了这些既有行为：
 +
-+本次实现分为两部分。
++- `onMounted` 仍调用 `errorApi.getDueErrorItems()`。
++- 没有待复习错题时仍进入完成态。
++- 评分仍使用 `rate(0)`、`rate(3)`、`rate(5)`。
++- `errorApi.rateErrorItem(current.value.id, quality, seconds)` 调用未改。
++- 图片仍优先走 `localImagePath`，失败后 fallback 到 `remoteImageUrl`。
++- `RichText` 仍继续负责题干、答案、解析、错因、笔记渲染。
 +
-+PRD 归档：
++UI 层改造点：
 +
-+- 按已确认决策，将旧 `PRD.md` 的历史内容归档到 `docs/archive/PRD_vocab_v0.2.md`。
-+- 当前工作区仍保留 `PRD.md` 的删除状态，但旧内容已不再丢失。
-+
-+错题复习逻辑：
-+
-+- `src-tauri/src/db/error_repo.rs` 的 `get_due_error_items` 已移除 `remote_id IS NOT NULL` 限制。
-+- 同时移除了基于 `error_sync_ops` / `error_sync_conflicts` 的复习队列阻断，让同步状态不再挡住本地学习。
-+- 错题本 `due_count` 统计同步移除 `remote_id IS NOT NULL` 限制，只按 `ready`、`deleted_at`、`next_review` 判断。
-+- `rate_error_item` 在无 `remote_id` 时仍不创建独立 `review` op，但会刷新现有 pending `create` op 的 payload，让后续首次同步携带最新的 SM-2 结果。
-+
-+新增测试覆盖：
-+
-+- 本地 ready 且 `remote_id IS NULL` 会出现在 `get_due_error_items`，并计入 `due_count`。
-+- `pending_analysis` / `analyzing` / `analyze_failed` / `deleted` 不会进入复习队列。
-+- 无 `remote_id` 的 ready 错题复习后会更新本地复习字段、写入 `error_review_logs`、并保持只有 `create` op。
-+
-+## 5. 测试与验证
-+
-+请填写实际运行过的命令和结果。
-+
-+```txt
-+命令：git show HEAD:PRD.md
-+结果：取回旧 `PRD.md` 的完整内容，用于归档。
-+
-+命令：git diff -- src-tauri/src/db/error_repo.rs ERROR_SYNC_PROTOCOL.md docs/archive/PRD_vocab_v0.2.md
-+结果：复核本次实现的代码、协议文档和归档文件改动。
-+
-+命令：cargo test
-+结果：通过。`src-tauri` 下共 39 个测试通过，0 失败。
-+
-+命令：git status --short
-+结果：确认当前工作区包含本次修改的 `src-tauri/src/db/error_repo.rs`、`docs/archive/PRD_vocab_v0.2.md`、`.ai-bridge/*`，以及原有的 `PRD.md` 删除状态。
-+```
-+
-+## 6. 未解决问题
-+
-+无
-+
-+## 7. 需要 ChatGPT / 用户确认的问题
-+
-+建议 ChatGPT Review 重点看两处：
-+
-+- 是否接受“同步冲突和 pending op 不再阻断本地复习”的当前实现口径。这符合 Learning First，但比原计划多走了一步。
-+- 是否需要后续在协议或服务端联调计划里明确：本地先复习、后首次 create 同步时，服务端应如何看待 create payload 中已被更新过的 SM-2 字段。
-+
-+## 8. 文档是否需要同步更新
-+
-+否
-+
-+本次计划要求的协议文档更新已完成，暂不需要额外同步其他长期文档。
-diff --git a/.ai-bridge/codex-status.md b/.ai-bridge/codex-status.md
-new file mode 100644
-index 0000000..94e6f3c
---- /dev/null
-+++ b/.ai-bridge/codex-status.md
-@@ -0,0 +1,8 @@
-+# Codex Status
-+
-+## 2026-06-28
-+
-+- 已完成 `PRD.md` 历史内容归档：`docs/archive/PRD_vocab_v0.2.md`。
-+- 已修改 `src-tauri/src/db/error_repo.rs`，允许本地 ready 且未同步的错题进入复习队列。
-+- 已补充 Rust repo 层测试，并通过 `cargo test`（39/39）。
-+- 已更新 `ERROR_SYNC_PROTOCOL.md` 与 `.ai-bridge` 交接文件。
++1. Header
++   - 旧的顶部区域只有标题和简单副文案。
++   - 现在改为更接近设计稿的三段式结构：
++     - 左侧返回按钮
++     - 中部标题和学习导语
++     - 右侧进度胶囊与进度条
++2. Hero Card
++   - 题目主卡改成更明显的学习卡片。
++   - 使用浅蓝径向渐变、细边框、柔和阴影。
++   - 保留图片、题干、知识点标签。
++   - 把“展开答案”主按钮移入 hero card，符合设计稿层级。
++   - 右侧用纯 CSS 方块装饰模拟几何学习感，没有引入新资源。
++3. 答案与解析区
++   - 把原来的 tabs 和内容区整体卡片化。
++   - 当前 tab 改成 segmented control 风格。
++   - `答案与解析` 用更清晰的 section head 和分隔线。
++   - `错因与笔记` 在无内容时增加优雅空状态：
++     `这道题还没有记录错因，复习后可以补充。`
++4. 底部评分浮层
++   - 只在 `revealed` 后显示。
++   - 改成固定底部浮层，带半透明白底和 blur。
++   - 三个评分按钮改成等宽柔和红/橙/绿卡片，文案更贴近设计稿。
++5. 响应式
++   - 增加了移动端 header、hero、tabs、底部评分区的专门收敛样式。
++   - 给 main 区增加了评分浮层预留空间，避免内容被遮挡。
+ 
+ ## 5. 测试与验证
+ 
+-请填写实际运行过的命令和结果。
+-
+ ```txt
+-命令：git show HEAD:PRD.md
+-结果：取回旧 `PRD.md` 的完整内容，用于归档。
+-
+-命令：git diff -- src-tauri/src/db/error_repo.rs ERROR_SYNC_PROTOCOL.md docs/archive/PRD_vocab_v0.2.md
+-结果：复核本次实现的代码、协议文档和归档文件改动。
++命令：npm run build
++结果：通过。
+ 
+-命令：cargo test
+-结果：通过。`src-tauri` 下共 39 个测试通过，0 失败。
++命令：本地 Vite 预览 + in-app browser 截图检查
++结果：已确认页面外层背景、header、完成态顶部壳层可以正常渲染。
++说明：纯 Vite 预览环境拿不到 Tauri 真实错题数据，因此无法在浏览器里完整验证“有待复习错题时”的真实内容卡和评分流；这部分主要依赖代码审查和构建通过来确认。
+ 
+-命令：git status --short
+-结果：确认当前工作区包含本次修改的 `src-tauri/src/db/error_repo.rs`、`docs/archive/PRD_vocab_v0.2.md`、`.ai-bridge/*`，以及原有的 `PRD.md` 删除状态。
++命令：根据补充截图继续调整后再次执行 `npm run build`
++结果：通过。说明这轮桌面未展开态收口没有破坏现有页面构建。
+ ```
+ 
+ ## 6. 未解决问题
+ 
+-无
++- 如果后续希望在纯 Web 预览里更方便地审错题复习页 UI，最好单独补一个 preview/mock 入口。
++- 本轮没有增加这种 preview 逻辑，因为当前计划明确要求只修 UI，不改业务行为。
+ 
+ ## 7. 需要 ChatGPT / 用户确认的问题
+ 
+-建议 ChatGPT Review 重点看两处：
++需要 ChatGPT review 的重点：
+ 
+-- 是否接受“同步冲突和 pending op 不再阻断本地复习”的当前实现口径。这符合 Learning First，但比原计划多走了一步。
+-- 是否需要后续在协议或服务端联调计划里明确：本地先复习、后首次 create 同步时，服务端应如何看待 create payload 中已被更新过的 SM-2 字段。
++- 是否接受当前 header、hero、tabs、底部评分区的视觉方向，作为错题复习页与错题本同一家族的正式样式。
++- 是否希望下一轮继续补一个“错题复习页 preview/mock 模式”，方便脱离 Tauri 真数据做纯前端 UI 调整。
+ 
+ ## 8. 文档是否需要同步更新
+ 
+ 否
+ 
+-本次计划要求的协议文档更新已完成，暂不需要额外同步其他长期文档。
++当前计划范围内不需要额外同步长期文档。
 diff --git a/.ai-bridge/execution-log.jsonl b/.ai-bridge/execution-log.jsonl
-new file mode 100644
-index 0000000..fe0b6ed
---- /dev/null
+index fe0b6ed..8b469d1 100644
+--- a/.ai-bridge/execution-log.jsonl
 +++ b/.ai-bridge/execution-log.jsonl
-@@ -0,0 +1,4 @@
-+{"ts":"2026-06-28T03:02:04.498Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"Recall 三方协作启动准备","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
-+{"ts":"2026-06-28T03:07:59Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"Recall 三方协作启动准备","summary":"Read collaboration docs, checked worktree status, documented current conflicts, and updated report/status files without changing business code."}
-+{"ts":"2026-06-28T03:13:45.930Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"归档 PRD 并允许本地 ready 错题先复习","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
-+{"ts":"2026-06-28T03:21:04Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"归档 PRD 并允许本地 ready 错题先复习","summary":"Archived PRD, enabled local ready unsynced error items to enter review, refreshed pending create payload on local review, updated protocol docs, and passed cargo test."}
-diff --git a/.ai-bridge/session-log.jsonl b/.ai-bridge/session-log.jsonl
-new file mode 100644
-index 0000000..9e07a45
---- /dev/null
-+++ b/.ai-bridge/session-log.jsonl
-@@ -0,0 +1,3 @@
-+{"ts":"2026-06-28T03:02:04.498Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"Recall 三方协作启动准备","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
-+{"ts":"2026-06-28T03:13:45.929Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"归档 PRD 并允许本地 ready 错题先复习","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
-+{"ts":"2026-06-28T03:21:04Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"归档 PRD 并允许本地 ready 错题先复习","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
+@@ -2,3 +2,38 @@
+ {"ts":"2026-06-28T03:07:59Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"Recall 三方协作启动准备","summary":"Read collaboration docs, checked worktree status, documented current conflicts, and updated report/status files without changing business code."}
+ {"ts":"2026-06-28T03:13:45.930Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"归档 PRD 并允许本地 ready 错题先复习","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
+ {"ts":"2026-06-28T03:21:04Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"归档 PRD 并允许本地 ready 错题先复习","summary":"Archived PRD, enabled local ready unsynced error items to enter review, refreshed pending create payload on local review, updated protocol docs, and passed cargo test."}
++{"ts":"2026-06-28T07:30:36.950Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"核对 wrong-notebook 服务端同步协议","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T07:36:55Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"核对 wrong-notebook 服务端同步协议","summary":"Verified wrong-notebook mobile auth/analyze/push/pull routes against the client protocol, confirmed create accepts SM-2 fields and pull returns full notebooks, and found the existing mobile-sync-push integration test is stale and failing against the current ops-based contract."}
++{"ts":"2026-06-28T07:30:36.947Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"核对 wrong-notebook 服务端同步协议","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T07:45:38.565Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"修复服务端 mobile sync 测试","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T07:52:39Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"修复服务端 mobile sync 测试","summary":"Replaced the stale wrong-notebook mobile sync push test with ops-based coverage for create/update/review/delete/conflict flows, locked SM-2 field persistence and server response fields, and passed the targeted Vitest file."}
++{"ts":"2026-06-28T07:58:02.664Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"建立 ai-bridge 自动化协作方案 B","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T08:04:08.842Z","event":"runner_skip","status":"idle","message":"Task not ready for Codex.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:04:26.293Z","event":"runner_dry_run","status":"ready_for_codex","message":"Dry run; Codex command not executed.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:04:27Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"建立 ai-bridge 自动化协作方案 B","summary":"Added ai-bridge task-state automation, implemented runner/watch scripts with safe defaults and Codex CLI integration, updated README and npm entrypoints, and verified with bash -n plus a dry run."}
++{"ts":"2026-06-28T08:10:44.619Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"ai-bridge v0.2 安全加固","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T08:22:16.675Z","event":"runner_skip","status":"idle","message":"Task not ready for Codex.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:22:38.267Z","event":"runner_dry_run","status":"ready_for_codex","message":"Dry run; Codex command not executed.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:22:38.290Z","event":"runner_skip","status":"idle","message":"Task not ready for Codex.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:22:59.610Z","event":"runner_skip","status":"ready_for_codex","message":"Runner lock already exists.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:22:59.697Z","event":"runner_failed","status":"failed","message":"No Codex command configured.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:23:25.825Z","event":"runner_started","status":"running","message":"Starting Codex runner.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:23:26.598Z","event":"runner_failed","status":"failed","message":"Report fingerprint did not change after Codex run.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:23:45.933Z","event":"runner_failed","status":"failed","message":"No Codex command configured.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:24:30Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"ai-bridge v0.2 安全加固","summary":"Hardened ai-bridge runner/watch safety defaults, added report fingerprint validation, changed missing-command handling to failed, required explicit default Codex enablement, updated README collaboration guidance, and verified syntax plus dry-run/no-command/stale-report scenarios."}
++{"ts":"2026-06-28T08:39:34.440Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"ai-bridge v0.3 状态管理与 review 辅助脚本","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T08:45:39.255Z","event":"runner_failed","status":"failed","message":"No Codex command configured.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:45:48.611Z","event":"state_reset","status":"idle","message":"State reset to idle.","source":"ai-bridge-state","taskId":"ai-bridge-v0.3-state-review-helper","force":true}
++{"ts":"2026-06-28T08:45:48.641Z","event":"state_ready","status":"ready_for_codex","message":"Marked task ready for Codex.","source":"ai-bridge-state","taskId":"test-state-flow","force":false}
++{"ts":"2026-06-28T08:45:48.659Z","event":"state_failed","status":"failed","message":"manual simulation","source":"ai-bridge-state","taskId":"test-state-flow"}
++{"ts":"2026-06-28T08:45:48.666Z","event":"state_reset","status":"idle","message":"State reset to idle.","source":"ai-bridge-state","taskId":"test-state-flow","force":false}
++{"ts":"2026-06-28T08:46:03.065Z","event":"state_ready","status":"ready_for_codex","message":"Marked task ready for Codex.","source":"ai-bridge-state","taskId":"test-state-flow","force":false}
++{"ts":"2026-06-28T08:46:13.559Z","event":"state_failed","status":"failed","message":"manual simulation","source":"ai-bridge-state","taskId":"test-state-flow"}
++{"ts":"2026-06-28T08:46:19.296Z","event":"state_reset","status":"idle","message":"State reset to idle.","source":"ai-bridge-state","taskId":"test-state-flow","force":false}
++{"ts":"2026-06-28T08:46:29.697Z","event":"runner_skip","status":"idle","message":"Task not ready for Codex.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:46:33.994Z","event":"state_ready","status":"ready_for_codex","message":"Marked task ready for Codex.","source":"ai-bridge-state","taskId":"ai-bridge-v0.3-state-review-helper","force":false}
++{"ts":"2026-06-28T08:46:34.389Z","event":"state_reset","status":"idle","message":"State reset to idle.","source":"ai-bridge-state","taskId":"ai-bridge-v0.3-state-review-helper","force":true}
++{"ts":"2026-06-28T08:46:35Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"ai-bridge v0.3 状态管理与 review 辅助脚本","summary":"Added the ai-bridge state management CLI with status/ready/review-done/fail/reset/doctor commands, unified lastReportFingerprint to null-or-object, updated README and package scripts, verified state transitions plus build, and restored task-state to a safe idle status after simulation."}
++{"ts":"2026-06-28T09:03:20.118Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"错题复习页面 UI 美化改造","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T09:18:20Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"错题复习页面 UI 美化改造","summary":"Redesigned ErrorReviewPage to match the app's refined blue-and-white study aesthetic, rebuilt the header/hero/answer tabs/rating footer while preserving all review logic and image fallbacks, passed npm run build, and verified the static shell in a local browser preview."}
++{"ts":"2026-06-28T13:59:00Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"错题复习页面 UI 美化改造（补图收口）","summary":"Refined the unrevealed desktop review card after the follow-up screenshot by tightening the content width, increasing visual density, reducing hero ornament sprawl, and keeping the expand-answer CTA closer to the approved mobile-card feel; build still passes."}
+diff --git a/src/pages/ErrorReviewPage.vue b/src/pages/ErrorReviewPage.vue
+index 2cea907..5cfd11b 100644
+--- a/src/pages/ErrorReviewPage.vue
++++ b/src/pages/ErrorReviewPage.vue
+@@ -7,13 +7,9 @@ import {
+   Brain,
+   CheckCircle,
+   ChevronDown,
+-  ChevronUp,
+   Clock3,
+-  Ellipsis,
+   Lightbulb,
+   NotebookPen,
+-  RotateCcw,
+-  Sparkles,
+   Target,
+ } from 'lucide-vue-next'
+ import * as errorApi from '../api/errorItem'
+@@ -38,8 +34,19 @@ const imageSrc = computed(() => {
+   }
+   return current.value?.remoteImageUrl || ''
+ })
+-const progressLabel = computed(() => done.value ? '完成' : `${index.value + 1} / ${items.value.length}`)
+ const knowledgePoints = computed(() => current.value ? errorApi.parseKnowledgePoints(current.value.knowledgePoints) : [])
++const progressCurrent = computed(() => {
++  if (items.value.length === 0) return 0
++  return done.value ? items.value.length : Math.min(index.value + 1, items.value.length)
++})
++const progressTotal = computed(() => items.value.length)
++const progressPercent = computed(() => {
++  if (items.value.length === 0) return 100
++  return Math.max(8, Math.round((progressCurrent.value / items.value.length) * 100))
++})
++const hasMistakeContent = computed(() => Boolean(
++  current.value?.wrongAnswerText || current.value?.mistakeAnalysis || current.value?.userNotes,
++))
+ 
+ onMounted(async () => {
+   items.value = await errorApi.getDueErrorItems()
+@@ -87,7 +94,7 @@ function updateKnowledgeOverflow() {
+     return
+   }
+ 
+-  const chips = Array.from(el.querySelectorAll<HTMLElement>('.error-chip'))
++  const chips = Array.from(el.querySelectorAll<HTMLElement>('.review-chip'))
+   if (chips.length <= 1) {
+     knowledgeOverflowing.value = false
+     return
+@@ -101,160 +108,232 @@ function updateKnowledgeOverflow() {
+ 
+ <template>
+   <div class="app-page review-page min-h-screen">
+-    <header class="error-header header-safe-top">
+-      <button class="error-header-button" type="button" @click="router.push({ name: 'ErrorNotebook' })">
++    <header class="review-topbar header-safe-top">
++      <button class="review-nav-button" type="button" aria-label="返回错题本" @click="router.push({ name: 'ErrorNotebook' })">
+         <ArrowLeft class="h-6 w-6" />
+       </button>
+-      <div class="text-center">
+-        <h1 class="error-header-title">错题复习</h1>
+-        <p class="error-header-subtitle">{{ progressLabel }}</p>
++      <div class="review-title-block">
++        <h1 class="review-title">错题复习</h1>
++        <p class="review-subtitle">把错因重新学会，推进到长期记忆</p>
++      </div>
++      <div class="review-progress-pill" :class="{ 'review-progress-pill-complete': done }" aria-label="复习进度">
++        <template v-if="progressTotal > 0">
++          <div class="review-progress-numbers">
++            <strong>{{ progressCurrent }}</strong>
++            <span>/ {{ progressTotal }}</span>
++          </div>
++          <div class="review-progress-track">
++            <span class="review-progress-fill" :style="{ width: `${progressPercent}%` }" />
++          </div>
++        </template>
++        <template v-else>
++          <div class="review-progress-numbers">
++            <strong>完成</strong>
++          </div>
++          <div class="review-progress-track">
++            <span class="review-progress-fill" style="width: 100%" />
++          </div>
++        </template>
+       </div>
+-      <button class="error-header-button" type="button" aria-label="more">
+-        <Ellipsis class="h-6 w-6" />
+-      </button>
+     </header>
+ 
+-    <main class="error-main">
+-      <section v-if="done" class="error-hero-card error-done-card">
+-        <CheckCircle class="mb-4 h-14 w-14 text-[#2f7cff]" />
+-        <h2 class="error-done-title">本轮错题复习完成</h2>
+-        <p class="error-done-text">这次一共完成 {{ items.length }} 道题。回到错题本继续整理一两道，记忆会更稳。</p>
+-        <button class="error-primary-button mt-5" type="button" @click="router.push({ name: 'ErrorNotebook' })">返回错题本</button>
++    <main class="review-shell" :class="{ 'review-shell-with-rating': revealed && !done && current }">
++      <section v-if="done" class="review-done-card">
++        <div class="review-done-icon">
++          <CheckCircle class="h-14 w-14 text-[#2f7cff]" />
++        </div>
++        <h2 class="review-done-title">本轮错题复习完成</h2>
++        <p class="review-done-text">这次一共完成 {{ items.length }} 道题。回到错题本继续整理一两道，记忆会更稳。</p>
++        <button class="review-primary-button mt-5" type="button" @click="router.push({ name: 'ErrorNotebook' })">返回错题本</button>
+       </section>
+ 
+       <template v-else-if="current">
+-        <section class="error-hero-card">
+-          <div class="error-hero-top">
+-            <img v-if="imageSrc" :src="imageSrc" class="error-thumb" @error="handleImageError" />
++        <section class="review-hero-card">
++          <div class="review-hero-glow" aria-hidden="true" />
++          <div class="review-hero-grid" :class="{ 'review-hero-grid-no-image': !imageSrc }">
++            <div v-if="imageSrc" class="review-hero-media">
++              <img :src="imageSrc" class="review-thumb" @error="handleImageError" />
++            </div>
+ 
+-            <div class="error-hero-content">
+-              <div class="error-mini-stats">
+-                <div class="error-mini-pill">
++            <div class="review-hero-content">
++              <div class="review-hero-pills">
++                <div class="review-mini-pill">
+                   <Clock3 class="h-4 w-4" />
+-                  {{ current.nextReview }}
++                  今日待复习
+                 </div>
+-                <div class="error-mini-pill">
++                <div class="review-mini-pill review-mini-pill-level">
+                   <Target class="h-4 w-4" />
+                   Lv. {{ current.masteryLevel }}
+                 </div>
+               </div>
+ 
+               <RichText
+-                class="error-question-text"
++                class="review-question-text"
+                 :text="current.questionText"
+                 fallback="这道题还没有题干，先根据图片回忆核心条件。"
+               />
+ 
+-              <div v-if="knowledgePoints.length" class="error-question-tags-row">
++              <div v-if="knowledgePoints.length" class="review-question-tags-row">
+                 <div
+                   ref="knowledgeTagsRef"
+-                  class="error-question-tags"
+-                  :class="{ 'error-question-tags-collapsed': !knowledgeExpanded }"
++                  class="review-question-tags"
++                  :class="{ 'review-question-tags-collapsed': !knowledgeExpanded }"
+                 >
+-                  <span v-for="point in knowledgePoints" :key="point" class="error-chip">
++                  <span v-for="point in knowledgePoints" :key="point" class="review-chip">
+                     {{ point }}
+                   </span>
+                 </div>
+                 <button
+                   v-if="knowledgeOverflowing"
+-                  class="error-inline-expand"
++                  class="review-inline-expand"
+                   type="button"
+                   @click="knowledgeExpanded = !knowledgeExpanded"
+                 >
+-                  <ChevronDown v-if="!knowledgeExpanded" class="h-4.5 w-4.5" />
+-                  <ChevronUp v-else class="h-4.5 w-4.5" />
++                  <span>{{ knowledgeExpanded ? '收起' : '更多' }}</span>
++                  <ChevronDown class="h-4 w-4" :class="{ 'review-inline-expand-open': knowledgeExpanded }" />
+                 </button>
+               </div>
++
++              <button v-if="!revealed" class="review-expand-answer" type="button" @click="revealed = true">
++                <span>展开答案</span>
++                <ChevronDown class="h-5 w-5" />
++              </button>
++            </div>
++
++            <div class="review-hero-ornament" aria-hidden="true">
++              <span class="review-cube review-cube-a" />
++              <span class="review-cube review-cube-b" />
++              <span class="review-cube review-cube-c" />
++              <span class="review-cube review-cube-d" />
++              <span class="review-cube review-cube-e" />
+             </div>
+           </div>
+         </section>
+ 
+-        <section v-if="revealed" class="error-tabs-panel">
+-          <div class="error-tabs">
+-            <button class="error-tab" :class="{ 'error-tab-active': activeTab === 'answer' }" type="button" @click="activeTab = 'answer'">
++        <section v-if="revealed" class="review-answer-card">
++          <div class="review-tabs">
++            <button class="review-tab" :class="{ 'review-tab-active': activeTab === 'answer' }" type="button" @click="activeTab = 'answer'">
+               答案与解析
+             </button>
+-            <button class="error-tab" :class="{ 'error-tab-active': activeTab === 'mistake' }" type="button" @click="activeTab = 'mistake'">
++            <button class="review-tab" :class="{ 'review-tab-active': activeTab === 'mistake' }" type="button" @click="activeTab = 'mistake'">
+               错因与笔记
+             </button>
+           </div>
+ 
+-          <div class="error-tab-content">
+-            <article class="error-content-card">
++          <div class="review-tab-panel">
++            <article class="review-content-card">
+               <template v-if="activeTab === 'answer'">
+-                <section class="error-content-section">
+-                  <div class="error-card-head">
+-                    <Sparkles class="h-5 w-5 text-[#2f7cff]" />
++                <section class="review-content-section">
++                  <div class="review-card-head">
++                    <CheckCircle class="h-5 w-5 text-[#2f7cff]" />
+                     <h2>标准答案</h2>
+                   </div>
+-                  <RichText class="error-content-text" :text="current.answerText" fallback="暂无答案" />
++                  <RichText class="review-content-text" :text="current.answerText" fallback="暂无答案" />
+                 </section>
+ 
+-                <section class="error-content-section error-content-section-divider">
+-                  <div class="error-card-head">
++                <section class="review-content-section review-content-section-divider">
++                  <div class="review-card-head">
+                     <Lightbulb class="h-5 w-5 text-[#2f7cff]" />
+                     <h2>解析</h2>
+                   </div>
+-                  <RichText class="error-content-text" :text="current.analysis" fallback="暂无解析" />
++                  <RichText class="review-content-text" :text="current.analysis" fallback="暂无解析" />
+                 </section>
+               </template>
+ 
+               <template v-else>
+-                <section v-if="current.wrongAnswerText" class="error-content-section">
+-                  <div class="error-card-head">
++                <template v-if="hasMistakeContent">
++                  <section v-if="current.wrongAnswerText" class="review-content-section">
++                    <div class="review-card-head">
++                      <Brain class="h-5 w-5 text-[#ff786d]" />
++                      <h2>错答记录</h2>
++                    </div>
++                    <RichText class="review-content-text" :text="current.wrongAnswerText" />
++                  </section>
++
++                  <section
++                    v-if="current.mistakeAnalysis"
++                    class="review-content-section"
++                    :class="{ 'review-content-section-divider': current.wrongAnswerText }"
++                  >
++                    <div class="review-card-head">
++                      <Brain class="h-5 w-5 text-[#ff786d]" />
++                      <h2>错因分析</h2>
++                    </div>
++                    <RichText class="review-content-text" :text="current.mistakeAnalysis" />
++                  </section>
++
++                  <section
++                    v-if="current.userNotes"
++                    class="review-content-section"
++                    :class="{ 'review-content-section-divider': current.wrongAnswerText || current.mistakeAnalysis }"
++                  >
++                    <div class="review-card-head">
++                      <NotebookPen class="h-5 w-5 text-[#2f7cff]" />
++                      <h2>笔记</h2>
++                    </div>
++                    <RichText class="review-content-text" :text="current.userNotes" />
++                  </section>
++                </template>
++
++                <section v-else class="review-empty-state">
++                  <div class="review-card-head">
+                     <Brain class="h-5 w-5 text-[#ff786d]" />
+-                    <h2>错答记录</h2>
++                    <h2>错因与笔记</h2>
+                   </div>
+-                  <RichText class="error-content-text" :text="current.wrongAnswerText" />
+-                </section>
+-
+-                <section v-if="current.mistakeAnalysis" class="error-content-section" :class="{ 'error-content-section-divider': current.wrongAnswerText }">
+-                  <div class="error-card-head">
+-                    <Brain class="h-5 w-5 text-[#ff786d]" />
+-                    <h2>错因分析</h2>
+-                  </div>
+-                  <RichText class="error-content-text" :text="current.mistakeAnalysis" />
+-                </section>
+-
+-                <section v-if="current.userNotes" class="error-content-section" :class="{ 'error-content-section-divider': current.wrongAnswerText || current.mistakeAnalysis }">
+-                  <div class="error-card-head">
+-                    <NotebookPen class="h-5 w-5 text-[#2f7cff]" />
+-                    <h2>笔记</h2>
+-                  </div>
+-                  <RichText class="error-content-text" :text="current.userNotes" />
++                  <p>这道题还没有记录错因，复习后可以补充。</p>
+                 </section>
+               </template>
+             </article>
+           </div>
+         </section>
+-      </template>
+-    </main>
+ 
+-    <footer v-if="!done && current" class="error-actions" :class="{ 'error-actions-rating': revealed }">
+-      <template v-if="!revealed">
+-        <button class="error-action error-action-ghost" type="button" @click="router.push({ name: 'ErrorNotebook' })">
+-          返回错题本
+-        </button>
+-        <button class="error-action error-action-primary error-action-wide" type="button" @click="revealed = true">
+-          <RotateCcw class="h-5 w-5" />
+-          我想好了，展开答案
++        <button v-if="revealed" class="review-note-preview" type="button" @click="activeTab = 'mistake'">
++          <span class="review-note-icon">
++            <Lightbulb class="h-5 w-5" />
++          </span>
++          <span class="review-note-copy">
++            <strong>错因与笔记（预览）</strong>
++            <span v-if="hasMistakeContent">查看错答、错因分析和复习笔记</span>
++            <span v-else>复习后可补充：这题为什么错、下次怎么判断</span>
++          </span>
++          <ChevronDown class="h-5 w-5 rotate-[-90deg]" />
+         </button>
+       </template>
++    </main>
+ 
+-      <template v-else>
+-        <button class="error-score error-score-red" type="button" @click="rate(0)">
+-          <span class="error-score-title">忘了</span>
+-          <span class="error-score-hint">基本没想起来</span>
++    <footer v-if="revealed && !done && current" class="review-rating-bar">
++      <div class="review-rating-shell">
++        <button class="review-score review-score-red" type="button" @click="rate(0)">
++          <span class="review-face review-face-sad" aria-hidden="true">
++            <span class="review-face-eyes">··</span>
++            <span class="review-face-mouth" />
++          </span>
++          <span class="review-score-copy">
++            <span class="review-score-title">忘了</span>
++            <span class="review-score-hint">基本没想起来</span>
++          </span>
+         </button>
+-        <button class="error-score error-score-warm" type="button" @click="rate(3)">
+-          <span class="error-score-title">模糊</span>
+-          <span class="error-score-hint">能做一半，还不稳</span>
++        <button class="review-score review-score-warm" type="button" @click="rate(3)">
++          <span class="review-face review-face-flat" aria-hidden="true">
++            <span class="review-face-eyes">··</span>
++            <span class="review-face-mouth" />
++          </span>
++          <span class="review-score-copy">
++            <span class="review-score-title">模糊</span>
++            <span class="review-score-hint">思路还不稳定</span>
++          </span>
+         </button>
+-        <button class="error-score error-score-green" type="button" @click="rate(5)">
+-          <span class="error-score-title">掌握</span>
+-          <span class="error-score-hint">思路清楚，能独立做</span>
++        <button class="review-score review-score-green" type="button" @click="rate(5)">
++          <span class="review-face review-face-smile" aria-hidden="true">
++            <span class="review-face-eyes">··</span>
++            <span class="review-face-mouth" />
++          </span>
++          <span class="review-score-copy">
++            <span class="review-score-title">掌握</span>
++            <span class="review-score-hint">能独立做出</span>
++          </span>
+         </button>
+-      </template>
++      </div>
+     </footer>
+   </div>
+ </template>
+@@ -262,419 +341,1036 @@ function updateKnowledgeOverflow() {
+ <style scoped>
+ .review-page {
+   background:
+-    radial-gradient(circle at top center, rgba(146, 187, 255, 0.18), transparent 28%),
+-    linear-gradient(180deg, #fbfdff 0%, #f3f7ff 30%, #edf3ff 100%);
++    radial-gradient(circle at 18% 0%, rgba(98, 146, 255, 0.16), transparent 24%),
++    radial-gradient(circle at 86% 8%, rgba(171, 204, 255, 0.2), transparent 22%),
++    linear-gradient(180deg, #fffefe 0%, #f8fbff 34%, #edf4ff 100%);
+ }
+ 
+-.error-header {
++.review-topbar {
+   display: grid;
+-  grid-template-columns: 2.75rem 1fr 2.75rem;
++  grid-template-columns: 3.35rem minmax(0, 1fr) auto;
+   align-items: center;
+-  gap: 0.75rem;
+-  padding: 0.9rem 1.5rem 0;
++  gap: 0.82rem;
++  padding: 0.95rem 1.15rem 0;
+ }
+ 
+-.error-header-title {
+-  margin: 0;
+-  text-align: center;
+-  font-size: 0.92rem;
+-  font-weight: 900;
+-  color: #18274f;
++.review-nav-button {
++  display: grid;
++  width: 3rem;
++  height: 3rem;
++  place-items: center;
++  border: 1px solid rgba(209, 221, 247, 0.94);
++  border-radius: 1.15rem;
++  background: rgba(255, 255, 255, 0.96);
++  color: #1e3f8f;
++  box-shadow:
++    0 14px 30px rgba(78, 113, 188, 0.08),
++    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+ }
+ 
+-.error-header-subtitle {
+-  margin: 0.2rem 0 0;
++.review-title-block {
++  min-width: 0;
+   text-align: center;
+-  font-size: 0.76rem;
+-  color: #8ea0c6;
+ }
+ 
+-.error-header-button {
+-  display: grid;
+-  width: 2.75rem;
+-  height: 2.75rem;
+-  place-items: center;
+-  border: 0;
++.review-title {
++  margin: 0;
++  color: #132863;
++  font-size: 1.36rem;
++  line-height: 1.1;
++  font-weight: 950;
++  letter-spacing: 0.02em;
++}
++
++.review-subtitle {
++  margin: 0.34rem auto 0;
++  max-width: 16rem;
++  color: #6c82af;
++  font-size: 0.84rem;
++  line-height: 1.42;
++  font-weight: 650;
++}
++
++.review-progress-pill {
++  min-width: 6.15rem;
++  padding: 0.7rem 0.9rem 0.62rem;
++  border: 1px solid rgba(212, 224, 248, 0.94);
++  border-radius: 1.45rem;
++  background: rgba(255, 255, 255, 0.96);
++  box-shadow:
++    0 16px 30px rgba(80, 110, 176, 0.08),
++    inset 0 1px 0 rgba(255, 255, 255, 0.98);
++}
++
++.review-progress-pill-complete {
++  min-width: 5.7rem;
++}
++
++.review-progress-numbers {
++  display: flex;
++  align-items: baseline;
++  justify-content: center;
++  gap: 0.25rem;
++  color: #6f82aa;
++  font-weight: 700;
++}
++
++.review-progress-numbers strong {
++  color: #1f66ff;
++  font-size: 1.58rem;
++  line-height: 1;
++  font-weight: 950;
++}
++
++.review-progress-numbers span {
++  font-size: 0.92rem;
++}
++
++.review-progress-track {
++  margin-top: 0.48rem;
++  height: 0.34rem;
+   border-radius: 999px;
+-  background: transparent;
+-  color: #23345f;
++  background: rgba(221, 229, 243, 0.86);
++  overflow: hidden;
+ }
+ 
+-.error-main {
+-  padding: 1.15rem 1.5rem 8.6rem;
++.review-progress-fill {
++  display: block;
++  height: 100%;
++  border-radius: inherit;
++  background: linear-gradient(90deg, #1f66ff 0%, #4d8dff 100%);
+ }
+ 
+-.error-hero-card,
+-.error-tabs-panel {
++.review-shell {
++  padding: 1.1rem 1rem 2rem;
++}
++
++.review-shell-with-rating {
++  padding-bottom: calc(9.75rem + var(--safe-area-bottom));
++}
++
++.review-hero-card,
++.review-answer-card,
++.review-done-card {
++  position: relative;
+   overflow: hidden;
+-  border: 1px solid rgba(214, 227, 255, 0.95);
++  border: 1px solid rgba(197, 216, 248, 0.96);
+   border-radius: 2rem;
+   background:
+-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.48), transparent 30%),
+-    linear-gradient(180deg, #eef5ff 0%, #eaf2ff 100%);
++    radial-gradient(circle at 82% 18%, rgba(47, 124, 255, 0.12), transparent 30%),
++    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(238, 245, 255, 0.96));
+   box-shadow:
+     0 20px 44px rgba(93, 123, 194, 0.08),
+-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
++    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+ }
+ 
+-.error-hero-card {
+-  padding: 1.35rem;
++.review-hero-card {
++  padding: 1.35rem 1.25rem;
+ }
+ 
+-.error-hero-top {
++.review-hero-glow {
++  position: absolute;
++  inset: auto auto -4rem -3rem;
++  width: 11rem;
++  height: 11rem;
++  border-radius: 999px;
++  background: radial-gradient(circle, rgba(103, 153, 255, 0.12), transparent 70%);
++  pointer-events: none;
++}
++
++.review-hero-grid {
++  position: relative;
++  z-index: 1;
+   display: grid;
+-  grid-template-columns: 9.4rem minmax(0, 1fr);
++  grid-template-columns: 9rem minmax(0, 1fr);
+   gap: 1.15rem;
++  align-items: start;
+ }
+ 
+-.error-thumb {
++.review-hero-grid-no-image {
++  grid-template-columns: minmax(0, 1fr);
++}
++
++.review-hero-media {
++  position: relative;
++  z-index: 2;
++}
++
++.review-thumb {
+   width: 100%;
+-  height: 11.2rem;
++  height: 11.4rem;
+   object-fit: cover;
+-  border-radius: 1.15rem;
+-  border: 3px solid rgba(255, 255, 255, 0.96);
+-  box-shadow: 0 14px 28px rgba(106, 127, 176, 0.12);
++  border-radius: 1.28rem;
++  border: 1px solid rgba(196, 214, 248, 0.96);
++  background: rgba(255, 255, 255, 0.94);
++  box-shadow:
++    0 12px 28px rgba(95, 122, 181, 0.1),
++    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+ }
+ 
+-.error-hero-content {
++.review-hero-content {
++  position: relative;
++  z-index: 2;
+   min-width: 0;
+   display: flex;
+   flex-direction: column;
+-  justify-content: center;
++  align-items: flex-start;
++  padding-right: 7.2rem;
++}
++
++.review-hero-grid-no-image .review-hero-content {
++  padding-right: 8.6rem;
+ }
+ 
+-.error-mini-stats {
++.review-hero-pills {
+   display: flex;
+   flex-wrap: wrap;
+-  gap: 0.45rem;
+-  margin-bottom: 0.45rem;
++  gap: 0.55rem;
++  margin-bottom: 0.82rem;
+ }
+ 
+-.error-mini-pill {
++.review-mini-pill {
+   display: inline-flex;
+   align-items: center;
+-  gap: 0.35rem;
+-  min-height: 1.95rem;
+-  padding: 0 0.72rem;
+-  border: 1px solid rgba(188, 212, 255, 0.9);
++  gap: 0.38rem;
++  min-height: 2rem;
++  padding: 0 0.84rem;
++  border: 1px solid rgba(189, 210, 248, 0.94);
+   border-radius: 999px;
+-  background: rgba(255, 255, 255, 0.82);
+-  color: #5182de;
+-  font-size: 0.76rem;
+-  font-weight: 800;
++  background: rgba(255, 255, 255, 0.88);
++  color: #2b62d8;
++  font-size: 0.83rem;
++  font-weight: 850;
++  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98);
+ }
+ 
+-.error-question-text {
++.review-mini-pill-level {
++  color: #3f69d5;
++}
++
++.review-question-text {
+   margin: 0;
+-  color: #18284f;
+-  font-size: 1rem;
+-  line-height: 1.78;
++  color: #152b63;
++  font-size: 1.12rem;
++  line-height: 1.72;
++  font-weight: 850;
+   white-space: pre-wrap;
+ }
+ 
+-.error-question-tags-row {
++.review-question-tags-row {
+   display: flex;
+   align-items: flex-start;
+-  gap: 0.35rem;
+-  margin-top: 0.08rem;
++  gap: 0.45rem;
++  margin-top: 1rem;
++  width: 100%;
+ }
+ 
+-.error-question-tags {
++.review-question-tags {
+   flex: 1;
+   display: flex;
+   flex-wrap: wrap;
+-  gap: 0.35rem;
++  gap: 0.42rem;
+   min-width: 0;
+ }
+ 
+-.error-question-tags-collapsed {
+-  max-height: 1.45rem;
++.review-question-tags-collapsed {
++  max-height: 1.8rem;
+   overflow: hidden;
+ }
+ 
+-.error-chip {
++.review-chip {
+   display: inline-flex;
+   align-items: center;
+-  min-height: 1.45rem;
+-  padding: 0 0.5rem;
+-  border: 1px solid rgba(188, 212, 255, 0.9);
++  min-height: 1.8rem;
++  padding: 0 0.7rem;
++  border: 1px solid rgba(191, 213, 250, 0.96);
+   border-radius: 999px;
+-  background: rgba(255, 255, 255, 0.82);
+-  color: #5182de;
+-  font-size: 0.68rem;
++  background: rgba(255, 255, 255, 0.84);
++  color: #2670ff;
++  font-size: 0.78rem;
+   font-weight: 800;
+ }
+ 
+-.error-inline-expand {
+-  display: inline-grid;
+-  width: 1.45rem;
+-  height: 1.45rem;
+-  place-items: center;
+-  border: 0;
++.review-inline-expand {
++  display: inline-flex;
++  align-items: center;
++  gap: 0.24rem;
++  min-height: 1.8rem;
++  padding: 0 0.72rem;
++  border: 1px solid rgba(199, 216, 248, 0.96);
+   border-radius: 999px;
+-  background: rgba(255, 255, 255, 0.82);
+-  color: #4f82df;
++  background: rgba(255, 255, 255, 0.86);
++  color: #3c6fdb;
++  font-size: 0.74rem;
++  font-weight: 800;
+ }
+ 
+-.error-tabs-panel {
+-  margin-top: 1rem;
+-  border-radius: 2rem 2rem 0 0;
++.review-inline-expand-open {
++  transform: rotate(180deg);
++}
++
++.review-expand-answer,
++.review-primary-button {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  gap: 0.48rem;
++  min-height: 3.9rem;
++  border: 0;
++  border-radius: 1.4rem;
++  padding: 0 1.7rem;
++  background: linear-gradient(135deg, #2f7cff 0%, #1f66ff 100%);
++  color: white;
++  font-size: 1rem;
++  font-weight: 900;
++  box-shadow:
++    0 16px 32px rgba(34, 102, 255, 0.26),
++    inset 0 1px 0 rgba(255, 255, 255, 0.28);
++}
++
++.review-expand-answer {
++  margin-top: 1.2rem;
++}
++
++.review-hero-ornament {
++  position: absolute;
++  right: 0.35rem;
++  bottom: 0.1rem;
++  width: 9.5rem;
++  height: 10rem;
++  pointer-events: none;
++  opacity: 0.82;
++}
++
++.review-cube {
++  position: absolute;
++  border: 1px solid rgba(179, 205, 255, 0.56);
++  background: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(214, 231, 255, 0.18));
++  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
++}
++
++.review-cube::before,
++.review-cube::after {
++  content: "";
++  position: absolute;
++  border: 1px solid rgba(179, 205, 255, 0.46);
++}
++
++.review-cube::before {
++  inset: -0.42rem 0.42rem auto auto;
++  width: 0.92rem;
++  height: 0.92rem;
++  transform: skewY(-30deg);
++  border-left: 0;
++  border-bottom: 0;
++}
++
++.review-cube::after {
++  inset: auto -0.42rem 0.42rem auto;
++  width: 0.92rem;
++  height: calc(100% - 0.1rem);
++  transform: skewY(30deg);
++  border-left: 0;
++  border-top: 0;
++}
++
++.review-cube-a {
++  right: 1.2rem;
++  top: 0.8rem;
++  width: 2rem;
++  height: 2rem;
++}
++
++.review-cube-b {
++  right: 2.9rem;
++  top: 2.8rem;
++  width: 2.25rem;
++  height: 2.25rem;
++}
++
++.review-cube-c {
++  right: 0.85rem;
++  top: 3.2rem;
++  width: 2.15rem;
++  height: 2.15rem;
++}
++
++.review-cube-d {
++  right: 4.7rem;
++  top: 4.5rem;
++  width: 1.7rem;
++  height: 1.7rem;
++}
++
++.review-cube-e {
++  right: 3.3rem;
++  bottom: 0.75rem;
++  width: 1.95rem;
++  height: 1.95rem;
++}
++
++.review-answer-card {
++  margin-top: 1.1rem;
++  border-radius: 2rem;
+   background:
+-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.96), transparent 34%),
+-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 250, 255, 0.98) 100%);
++    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.98), transparent 35%),
++    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 249, 255, 0.98) 100%);
+   box-shadow:
+     0 18px 42px rgba(97, 126, 190, 0.08),
+-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
++    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+ }
+ 
+-.error-tabs {
+-  display: grid;
+-  grid-template-columns: repeat(2, minmax(0, 1fr));
++.review-tabs {
++  display: flex;
++  gap: 0.28rem;
++  padding: 0.9rem 0.9rem 0;
+ }
+ 
+-.error-tab {
++.review-tab {
+   position: relative;
+-  min-height: 3.05rem;
++  flex: 1;
++  min-height: 3.45rem;
+   border: 0;
+-  background: linear-gradient(180deg, rgba(249, 251, 255, 0.96) 0%, rgba(243, 247, 255, 0.96) 100%);
+-  color: #8f98ab;
+-  font-size: 0.88rem;
++  border-radius: 1.3rem 1.3rem 0 0;
++  background: linear-gradient(180deg, rgba(246, 249, 255, 0.96) 0%, rgba(239, 245, 255, 0.96) 100%);
++  color: #8091b6;
++  font-size: 1rem;
+   font-weight: 900;
+ }
+ 
+-.error-tab:first-child {
+-  border-top-left-radius: 2rem;
+-}
+-
+-.error-tab:last-child {
+-  border-top-right-radius: 2rem;
+-}
+-
+-.error-tab-active {
+-  background: white;
+-  color: #2f7cff;
++.review-tab-active {
++  background: rgba(255, 255, 255, 0.98);
++  color: #1f66ff;
+ }
+ 
+-.error-tab-active::after {
++.review-tab-active::after {
+   content: "";
+   position: absolute;
+   left: 50%;
+-  bottom: 0.28rem;
+-  width: 2.7rem;
+-  height: 0.2rem;
++  bottom: 0.4rem;
++  width: 3.4rem;
++  height: 0.22rem;
+   border-radius: 999px;
+-  background: #2f7cff;
++  background: linear-gradient(90deg, #1f66ff 0%, #4d8dff 100%);
+   transform: translateX(-50%);
+ }
+ 
+-.error-tab-content {
+-  padding: 0 1.15rem 1rem;
+-  margin-top: -0.18rem;
++.review-tab-panel {
++  padding: 0 0.9rem 0.95rem;
+ }
+ 
+-.error-content-card {
+-  padding: 1rem 0 0;
++.review-content-card {
++  border: 1px solid rgba(224, 233, 247, 0.96);
++  border-radius: 1.55rem;
++  background: rgba(255, 255, 255, 0.98);
++  padding: 1.15rem;
++  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98);
+ }
+ 
+-.error-content-section + .error-content-section {
+-  margin-top: 0.95rem;
++.review-content-section + .review-content-section {
++  margin-top: 1rem;
+ }
+ 
+-.error-content-section-divider {
+-  padding-top: 0.95rem;
+-  border-top: 1px solid rgba(231, 237, 248, 0.96);
++.review-content-section-divider {
++  padding-top: 1rem;
++  border-top: 1px dashed rgba(222, 231, 245, 0.96);
+ }
+ 
+-.error-card-head {
++.review-card-head {
+   display: flex;
+   align-items: center;
+-  gap: 0.55rem;
+-  margin-bottom: 0.55rem;
++  gap: 0.58rem;
++  margin-bottom: 0.62rem;
+ }
+ 
+-.error-card-head h2 {
++.review-card-head h2 {
+   margin: 0;
+   font-size: 1rem;
+   font-weight: 900;
+-  color: #1a2b57;
++  color: #17306b;
+ }
+ 
+-.error-content-text {
++.review-content-text {
+   margin: 0;
+   white-space: pre-wrap;
+-  color: #1a2b57;
+-  font-size: 0.94rem;
++  color: #1b315f;
++  font-size: 0.97rem;
++  line-height: 1.8;
++}
++
++.review-empty-state {
++  padding: 0.25rem 0;
++}
++
++.review-empty-state p {
++  margin: 0;
++  color: #6e80a7;
++  font-size: 0.95rem;
+   line-height: 1.72;
+ }
+ 
+-.error-done-card {
++.review-done-card {
++  padding: 1.8rem 1.4rem;
+   text-align: center;
+ }
+ 
+-.error-done-title {
++.review-done-icon {
++  display: flex;
++  justify-content: center;
++  margin-bottom: 1rem;
++}
++
++.review-done-title {
+   margin: 0;
+   color: #1d2e62;
+-  font-size: 1.3rem;
++  font-size: 1.42rem;
+   font-weight: 900;
+ }
+ 
+-.error-done-text {
++.review-done-text {
+   margin: 0.6rem auto 0;
+   max-width: 20rem;
+   color: #6d7ea9;
+-  font-size: 0.92rem;
++  font-size: 0.95rem;
+   line-height: 1.7;
+ }
+ 
+-.error-primary-button {
+-  display: inline-flex;
+-  align-items: center;
+-  justify-content: center;
+-  min-height: 3.2rem;
+-  border: 0;
+-  border-radius: 1.2rem;
+-  background: linear-gradient(135deg, #3883ff 0%, #166fff 100%);
+-  color: white;
+-  font-size: 0.92rem;
+-  font-weight: 900;
+-}
+-
+-.error-actions {
++.review-rating-bar {
+   position: fixed;
+   left: 0;
+   right: 0;
+   bottom: 0;
++  z-index: 30;
++  padding: 0.9rem 0.95rem calc(var(--safe-area-bottom) + 0.92rem);
++  background: linear-gradient(180deg, rgba(244, 248, 255, 0) 0%, rgba(244, 248, 255, 0.84) 28%, rgba(244, 248, 255, 0.95) 100%);
++}
++
++.review-rating-shell {
+   display: grid;
+-  gap: 0.8rem;
+-  padding: 0.85rem 1.5rem calc(var(--safe-area-bottom) + 0.95rem);
+-  background: linear-gradient(180deg, rgba(244, 248, 255, 0) 0%, rgba(244, 248, 255, 0.94) 24%, rgba(244, 248, 255, 0.98) 100%);
++  grid-template-columns: repeat(3, minmax(0, 1fr));
++  gap: 0.72rem;
++  padding: 0.72rem;
++  border: 1px solid rgba(215, 226, 245, 0.96);
++  border-radius: 1.7rem;
++  background: rgba(255, 255, 255, 0.82);
++  backdrop-filter: blur(18px);
++  box-shadow:
++    0 18px 36px rgba(79, 107, 172, 0.12),
++    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+ }
+ 
+-.error-action {
+-  display: inline-flex;
++.review-score {
++  display: flex;
++  min-height: 5rem;
+   align-items: center;
+-  justify-content: center;
+-  gap: 0.45rem;
+-  min-height: 3.55rem;
+-  border-radius: 1.2rem;
+-  border: 0;
+-  font-size: 0.92rem;
+-  font-weight: 900;
++  gap: 0.72rem;
++  border: 1px solid transparent;
++  border-radius: 1.4rem;
++  padding: 0.95rem 0.88rem;
++  text-align: left;
++  box-shadow:
++    0 10px 22px rgba(95, 119, 173, 0.08),
++    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+ }
+ 
+-.error-action-wide {
+-  grid-column: span 2;
++.review-score-red {
++  border-color: rgba(255, 194, 194, 0.98);
++  background: linear-gradient(180deg, rgba(255, 251, 251, 0.98), rgba(255, 244, 244, 0.98));
++  color: #ef4e53;
+ }
+ 
+-.error-action-ghost {
+-  border: 1px solid rgba(205, 219, 244, 0.95);
+-  background: rgba(255, 255, 255, 0.98);
+-  color: #263656;
++.review-score-warm {
++  border-color: rgba(255, 216, 171, 0.98);
++  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(255, 245, 229, 0.98));
++  color: #f29118;
+ }
+ 
+-.error-action-primary {
+-  background: linear-gradient(135deg, #3883ff 0%, #166fff 100%);
+-  color: white;
++.review-score-green {
++  border-color: rgba(185, 237, 197, 0.98);
++  background: linear-gradient(180deg, rgba(248, 255, 250, 0.98), rgba(238, 250, 242, 0.98));
++  color: #18a957;
++}
++
++.review-score-icon {
++  display: inline-grid;
++  width: 2.2rem;
++  height: 2.2rem;
++  place-items: center;
++  flex-shrink: 0;
++  border-radius: 999px;
++  border: 2px solid currentColor;
++  font-size: 1rem;
++  font-weight: 900;
++  line-height: 1;
+ }
+ 
+-.error-score {
++.review-score-copy {
+   display: flex;
+-  min-height: 4rem;
++  min-width: 0;
+   flex-direction: column;
+   align-items: flex-start;
+-  justify-content: center;
+-  border: 0;
+-  border-radius: 1.25rem;
+-  padding: 0.8rem 0.95rem;
+-  text-align: left;
+-  color: white;
+ }
+ 
+-.error-score-red {
+-  background: linear-gradient(135deg, #ff8f82 0%, #ff6f66 100%);
++.review-score-title {
++  font-size: 1rem;
++  font-weight: 900;
+ }
+ 
+-.error-score-warm {
+-  background: linear-gradient(135deg, #ffc951 0%, #ffb338 42%, #ffa01f 100%);
++.review-score-hint {
++  margin-top: 0.2rem;
++  color: rgba(41, 55, 90, 0.68);
++  font-size: 0.76rem;
++  line-height: 1.35;
+ }
+ 
+-.error-score-green {
+-  background: linear-gradient(135deg, #6edd71 0%, #4ed45d 42%, #31c44d 100%);
+-}
++@media (max-width: 720px) {
++  .review-topbar {
++    grid-template-columns: 3rem minmax(0, 1fr);
++    gap: 0.7rem;
++    padding-right: 1rem;
++    padding-left: 1rem;
++  }
+ 
+-.error-score-title {
+-  font-size: 0.92rem;
+-  font-weight: 900;
+-}
++  .review-nav-button {
++    width: 2.8rem;
++    height: 2.8rem;
++    border-radius: 1.05rem;
++  }
+ 
+-.error-score-hint {
+-  margin-top: 0.2rem;
+-  font-size: 0.72rem;
+-  color: rgba(255, 255, 255, 0.84);
+-}
++  .review-title {
++    font-size: 1.22rem;
++  }
+ 
+-@media (min-width: 721px) {
+-  .error-actions {
+-    grid-template-columns: 1fr 1.4fr;
++  .review-subtitle {
++    font-size: 0.8rem;
+   }
+ 
+-  .error-score {
+-    min-height: 4.3rem;
++  .review-progress-pill {
++    grid-column: 2;
++    justify-self: end;
++    min-width: 5.5rem;
++    margin-top: 0.15rem;
++    padding: 0.58rem 0.8rem 0.52rem;
+   }
+-}
+ 
+-@media (max-width: 720px) {
+-  .error-header,
+-  .error-main,
+-  .error-actions {
++  .review-progress-numbers strong {
++    font-size: 1.38rem;
++  }
++
++  .review-shell {
++    padding-top: 1rem;
+     padding-right: 1rem;
+     padding-left: 1rem;
+   }
+ 
+-  .error-main {
+-    padding-top: 1rem;
++  .review-hero-card {
++    padding: 1.15rem 1rem 1rem;
+   }
+ 
+-  .error-hero-top {
+-    grid-template-columns: 5.8rem minmax(0, 1fr);
++  .review-hero-grid {
++    grid-template-columns: 5.9rem minmax(0, 1fr);
+     gap: 0.95rem;
+   }
+ 
+-  .error-thumb {
++  .review-thumb {
+     height: 8.2rem;
++    border-radius: 1.05rem;
+   }
+ 
+-  .error-question-text {
++  .review-hero-content,
++  .review-hero-grid-no-image .review-hero-content {
++    padding-right: 0;
++  }
++
++  .review-question-text {
++    font-size: 0.98rem;
++    line-height: 1.64;
++  }
++
++  .review-hero-ornament {
++    right: -0.3rem;
++    bottom: -0.1rem;
++    width: 7rem;
++    height: 7rem;
++    opacity: 0.5;
++  }
++
++  .review-expand-answer,
++  .review-primary-button {
++    min-height: 3.55rem;
++    width: 100%;
++    font-size: 0.96rem;
++  }
++
++  .review-tabs {
++    padding: 0.72rem 0.72rem 0;
++  }
++
++  .review-tab {
++    min-height: 3rem;
++    font-size: 0.9rem;
++  }
++
++  .review-tab-panel {
++    padding: 0 0.72rem 0.72rem;
++  }
++
++  .review-content-card {
++    padding: 1rem;
++  }
++
++  .review-rating-bar {
++    padding-right: 0.8rem;
++    padding-left: 0.8rem;
++  }
++
++  .review-rating-shell {
++    gap: 0.6rem;
++    padding: 0.62rem;
++  }
++
++  .review-score {
++    min-height: 4.7rem;
++    flex-direction: column;
++    align-items: flex-start;
++    gap: 0.52rem;
++    padding: 0.82rem 0.74rem;
++  }
++
++  .review-score-icon {
++    width: 2rem;
++    height: 2rem;
++  }
++
++  .review-score-title {
+     font-size: 0.94rem;
+-    line-height: 1.68;
+   }
+ 
+-  .error-tab {
+-    min-height: 2.9rem;
+-    font-size: 0.86rem;
++  .review-score-hint {
++    font-size: 0.72rem;
+   }
++}
+ 
+-  .error-tab-content {
+-    padding-right: 1rem;
+-    padding-bottom: 0.9rem;
+-    padding-left: 1rem;
++/* Strong visual alignment with the approved UI mock: keep the header single-row on phones,
++   make the hero card more compact and make the bottom rating area feel like a premium floating bar. */
++.review-topbar {
++  max-width: 46rem;
++  margin: 0 auto;
++  grid-template-columns: 3.05rem minmax(0, 1fr) 5.85rem;
++}
++
++.review-progress-pill {
++  grid-column: auto;
++  justify-self: end;
++  margin-top: 0;
++}
++
++.review-hero-card,
++.review-answer-card,
++.review-note-preview,
++.review-done-card {
++  max-width: 46rem;
++  margin-inline: auto;
++}
++
++.review-hero-card {
++  border-radius: 1.82rem;
++  padding: 1.18rem 1.08rem 1.08rem;
++}
++
++.review-hero-pills {
++  justify-content: flex-start;
++}
++
++.review-hero-grid {
++  display: grid;
++  grid-template-columns: 9.25rem minmax(0, 1fr);
++  gap: 1.08rem;
++  align-items: start;
++}
++
++.review-thumb {
++  height: 9.25rem;
++  border-radius: 1.18rem;
++}
++
++.review-hero-content {
++  padding-right: 5.2rem;
++}
++
++.review-hero-grid-no-image .review-hero-content {
++  max-width: 32rem;
++  padding-right: 6rem;
++}
++
++.review-question-text {
++  max-width: 28.5rem;
++  font-size: 1.04rem;
++  line-height: 1.72;
++}
++
++.review-question-tags-row {
++  max-width: 28.5rem;
++}
++
++.review-expand-answer {
++  align-self: flex-start;
++  min-width: 17rem;
++  padding-right: 1.5rem;
++  padding-left: 1.5rem;
++}
++
++.review-hero-ornament {
++  right: 0.5rem;
++  bottom: 0.55rem;
++  width: 7.25rem;
++  height: 7.6rem;
++  opacity: 0.54;
++}
++
++.review-cube-a {
++  right: 0.95rem;
++  top: 0.45rem;
++  width: 1.7rem;
++  height: 1.7rem;
++}
++
++.review-cube-b {
++  right: 2.35rem;
++  top: 2.15rem;
++  width: 1.9rem;
++  height: 1.9rem;
++}
++
++.review-cube-c {
++  right: 0.65rem;
++  top: 2.45rem;
++  width: 1.82rem;
++  height: 1.82rem;
++}
++
++.review-cube-d {
++  right: 3.9rem;
++  top: 3.85rem;
++  width: 1.38rem;
++  height: 1.38rem;
++}
++
++.review-cube-e {
++  right: 2.7rem;
++  bottom: 0.25rem;
++  width: 1.62rem;
++  height: 1.62rem;
++}
++
++.review-answer-card {
++  padding: 0.78rem;
++}
++
++.review-content-card {
++  border-radius: 0 0 1.45rem 1.45rem;
++  padding: 1.18rem 1.05rem;
++}
++
++.review-note-preview {
++  display: grid;
++  grid-template-columns: auto minmax(0, 1fr) auto;
++  align-items: center;
++  gap: 0.74rem;
++  width: 100%;
++  margin-top: 0.98rem;
++  padding: 1rem 1.04rem;
++  text-align: left;
++  background: rgba(255, 255, 255, 0.94);
++}
++
++.review-note-icon {
++  display: grid;
++  width: 2.3rem;
++  height: 2.3rem;
++  place-items: center;
++  border-radius: 0.82rem;
++  background: rgba(232, 240, 255, 0.94);
++  color: #1f66ff;
++}
++
++.review-note-copy {
++  display: flex;
++  min-width: 0;
++  flex-direction: column;
++  gap: 0.28rem;
++}
++
++.review-note-copy strong {
++  color: #1f66ff;
++  font-size: 1rem;
++  font-weight: 950;
++}
++
++.review-note-copy span {
++  color: #5e6f99;
++  font-size: 0.84rem;
++  line-height: 1.42;
++}
++
++.review-face {
++  position: relative;
++  display: grid;
++  width: 2.35rem;
++  height: 2.35rem;
++  place-items: center;
++  flex-shrink: 0;
++  border: 2px solid currentColor;
++  border-radius: 999px;
++}
++
++.review-face-eyes {
++  position: absolute;
++  top: 0.48rem;
++  left: 50%;
++  transform: translateX(-50%);
++  font-size: 1.18rem;
++  letter-spacing: 0.1rem;
++  line-height: 0.8;
++}
++
++.review-face-mouth {
++  position: absolute;
++  left: 50%;
++  bottom: 0.56rem;
++  width: 0.92rem;
++  height: 0.34rem;
++  transform: translateX(-50%);
++}
++
++.review-face-sad .review-face-mouth {
++  border-top: 2px solid currentColor;
++  border-radius: 999px 999px 0 0;
++}
++
++.review-face-flat .review-face-mouth {
++  height: 0;
++  border-top: 2px solid currentColor;
++}
++
++.review-face-smile .review-face-mouth {
++  border-bottom: 2px solid currentColor;
++  border-radius: 0 0 999px 999px;
++}
++
++.review-rating-shell {
++  gap: 0.58rem;
++  padding: 0.64rem;
++  border-radius: 1.55rem;
++}
++
++.review-score {
++  min-height: 5rem;
++  flex-direction: row;
++  align-items: center;
++  gap: 0.62rem;
++  border-radius: 1.28rem;
++  padding: 0.82rem 0.68rem;
++}
++
++@media (max-width: 420px) {
++  .review-topbar {
++    grid-template-columns: 2.86rem minmax(0, 1fr) 5.45rem;
++    gap: 0.46rem;
++    padding-right: 0.78rem;
++    padding-left: 0.78rem;
++  }
++
++  .review-nav-button {
++    width: 2.78rem;
++    height: 2.78rem;
++    border-radius: 1rem;
++  }
++
++  .review-title {
++    font-size: 1.25rem;
+   }
+ 
+-  .error-actions {
+-    grid-template-columns: 1fr 1.25fr;
++  .review-subtitle {
++    font-size: 0.72rem;
++    transform: scale(0.94);
++    transform-origin: center;
+   }
+ 
+-  .error-action-wide {
+-    grid-column: auto;
++  .review-progress-pill {
++    width: 5.45rem;
++    min-width: 0;
++    padding-right: 0.68rem;
++    padding-left: 0.68rem;
++  }
++
++  .review-hero-grid {
++    grid-template-columns: 6.35rem minmax(0, 1fr);
++    gap: 0.74rem;
++  }
++
++  .review-thumb {
++    height: 6.35rem;
++  }
++
++  .review-question-text {
++    font-size: 0.98rem;
++    line-height: 1.58;
++  }
++
++  .review-score {
++    flex-direction: column;
++    align-items: flex-start;
++    gap: 0.44rem;
++    padding: 0.72rem 0.58rem;
++  }
++
++  .review-face {
++    width: 2.05rem;
++    height: 2.05rem;
++  }
++}
++
++@media (min-width: 721px) {
++  .review-shell {
++    max-width: 48rem;
++    margin: 0 auto;
++    padding-right: 1.5rem;
++    padding-left: 1.5rem;
++  }
++
++  .review-rating-bar {
++    left: 50%;
++    right: auto;
++    width: min(calc(100vw - 2rem), 50rem);
++    transform: translateX(-50%);
++  }
++
++  .review-rating-shell {
++    margin: 0 auto;
++    max-width: 46rem;
++  }
++
++  .review-expand-answer {
++    min-width: 18.5rem;
++  }
++}
++
++@media (min-width: 1100px) {
++  .review-shell {
++    max-width: 44rem;
+   }
+ 
+-  .error-actions-rating {
+-    grid-template-columns: repeat(3, minmax(0, 1fr));
++  .review-topbar,
++  .review-hero-card,
++  .review-answer-card,
++  .review-note-preview,
++  .review-done-card {
++    max-width: 44rem;
+   }
+ 
+-  .error-score {
+-    min-height: 3.8rem;
+-    padding: 0.7rem 0.8rem;
++  .review-rating-bar {
++    width: min(calc(100vw - 2rem), 46rem);
+   }
+ }
+ </style>

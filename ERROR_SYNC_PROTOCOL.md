@@ -577,6 +577,7 @@ Authorization: Bearer <access_token>
         "remoteId": "远端错题 ID",
         "localId": "本地错题 ID",
         "notebookId": "错题本 ID",
+        "notebookName": "错题本名称",
         "version": 2,
         "questionText": "题目",
         "answerText": "答案",
@@ -595,7 +596,8 @@ Authorization: Bearer <access_token>
           "remoteKey": "图片 key",
           "url": "/图片 URL",
           "sha256": "hash",
-          "contentType": "image/jpeg"
+          "contentType": "image/jpeg",
+          "size": 12345
         },
         "createdAt": "2026-06-27 10:00:00",
         "updatedAt": "2026-06-27 12:00:00"
@@ -606,13 +608,17 @@ Authorization: Bearer <access_token>
     {
       "opId": "本地 op ID",
       "localItemId": "本地错题 ID",
-      "code": "VERSION_CONFLICT | VALIDATION_ERROR | NOT_FOUND",
+      "code": "VERSION_CONFLICT | VALIDATION_ERROR | NOT_FOUND | REMOTE_ID_REQUIRED",
       "serverVersion": 3,
       "serverSnapshot": {}
     }
-  ]
+  ],
+  "remoteMappings": {},
+  "serverCursor": 123
 }
 ```
+
+服务端核对补充：当前 `wrong-notebook` 的 push 响应可能额外返回 `remoteMappings` 和 `serverCursor`；`serverSnapshot` 可能包含 `notebookName` 与 `image.size`；冲突码除 `VERSION_CONFLICT` / `VALIDATION_ERROR` / `NOT_FOUND` 外，还可能出现 `REMOTE_ID_REQUIRED`。
 
 客户端处理：
 
@@ -781,7 +787,7 @@ synced           -> 已同步
 客户端当前验证结果：
 
 ```txt
-cargo test: 36 passed
+cargo test: 39 passed
 npm run build: success
 ```
 
@@ -957,25 +963,36 @@ analyze 单独允许更长等待时间
 - analyze 请求 mimeType 写死问题
 - push/pull 错误响应不展示 body 的问题
 
-### Step 3：确认产品策略
+### Step 3：本地 ready 先复习策略已完成
 
-确认本地 ready 但未同步成功的错题是否可以进入复习。
-
-建议策略：
+该策略已经确认并在客户端落地：
 
 ```txt
 学习优先：只要 analysis_status = ready，就允许本地复习。
 同步状态只影响多端一致性，不阻断学习。
 ```
 
+当前客户端行为：
+
+- 本地 ready 但 `remote_id IS NULL` 的错题可以进入复习队列。
+- `due_count` 与复习队列使用同一套 ready / deleted / next_review 口径。
+- 本地 ready 但 `remote_id IS NULL` 的错题复习后，不单独生成 `review` op。
+- 本地复习会更新 SM-2 字段、写入 `error_review_logs`，并刷新 pending `create` payload。
+
+后续待验证项：
+
+- 服务端 create 接口是否接受已经被本地复习更新过的 SM-2 字段。
+- 错题处于 conflict 状态时，如果用户继续本地复习，后续冲突解决如何合并新的 SM-2 变化。
+- UI 是否持续清晰展示 conflict / pending 状态，避免用户误以为多端已经一致。
+
 ### Step 4：补充端到端测试
 
 在客户端和服务端协议确认后，补充真实端到端场景：
 
-- 新建错题 -> AI 分析 -> push create -> pull
+- 新建错题 -> AI 分析 -> 本地复习 -> push create -> pull
 - A 端编辑 -> B 端 pull
 - A/B 同时编辑 -> version conflict
-- 保留本地版本 -> 重新 push
+- conflict 状态下继续本地复习 -> 保留本地版本 -> 重新 push
 - 接受远端版本 -> 本地覆盖
 - 图片本地丢失 -> 使用 remote image url 展示
 - token 过期 -> refresh -> retry

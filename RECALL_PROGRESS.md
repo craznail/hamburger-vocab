@@ -95,6 +95,13 @@
 - adaptive queue generator
 - session-level optimization
 
+### 2026-06-28 业务主线复核
+- 客户端错题复习闭环已落地：待复习队列、错题复习页、评分、SM-2 更新、review log、TodayPage 入口。
+- 客户端错题同步闭环已落地：op log、push/pull、cursor、server snapshot、冲突记录、token refresh。
+- 本地 ready 但未同步成功的错题已允许先进入复习，不再被 `remote_id` 阻断。
+- 本轮验证结果：`cargo test` 39 passed，`npm run build` success。
+- 服务端 `wrong-notebook` 仍需接入当前 CodexPro allowed roots 后复验集成测试。
+
 ---
 
 ## 🧭 下一步计划

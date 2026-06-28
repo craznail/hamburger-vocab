@@ -2,12 +2,12 @@
 
 > Review 时间：2026-06-28  
 > Review 对象：本地 Codex 对 `.ai-bridge/current-plan.md` 的执行结果  
-> 任务标题：Recall 三方协作启动准备
+> 任务标题：建立 ai-bridge 自动化协作方案 B
 
 ## Review 状态
 
 ```txt
-通过，建议接受本次 Codex 交付。
+有条件通过，不建议立即长期启动 watcher；建议先做一轮安全加固。
 ```
 
 ## 1. Review 对象
@@ -16,114 +16,176 @@
 
 ```txt
 .ai-bridge/codex-report.md
-.ai-bridge/agent-status.md
-.ai-bridge/codex-status.md
-当前工作区变更状态
+.ai-bridge/task-state.json
+.ai-bridge/README.md
+scripts/ai-bridge-runner.sh
+scripts/ai-bridge-watch.sh
+package.json
+当前工作区状态
 ```
 
-Codex 本次任务范围是：
+Codex 报告中写明已运行：
 
 ```txt
-阅读协作文档
-检查当前工作区状态
-填写报告
-不要修改业务代码
-不要删除长期文档
+bash -n scripts/ai-bridge-runner.sh
+bash -n scripts/ai-bridge-watch.sh
+AI_BRIDGE_DRY_RUN=1 bash scripts/ai-bridge-runner.sh
 ```
 
-## 2. 产品一致性检查
+我这边 CodexPro 的 safe bash allowlist 不允许直接运行 `bash -n`，所以语法验证只能采信 Codex 报告；我已做静态 review。
 
-检查项：
+## 2. 已完成内容
 
-- [x] 是否符合“把任何知识变成长期记忆”
-- [x] 是否符合 Learning First
-- [x] 是否符合 Knowledge First
-- [x] 是否符合 Growth is Feedback
-- [x] 是否避免后台化
-- [x] 是否避免儿童化偏移
+通过项：
 
-结论：
+- 已新增 `.ai-bridge/task-state.json`。
+- 已新增 `scripts/ai-bridge-runner.sh`。
+- 已新增 `scripts/ai-bridge-watch.sh`。
+- 已扩写 `.ai-bridge/README.md`。
+- 已在 `package.json` 增加：
+  - `ai-bridge:run`
+  - `ai-bridge:watch`
+- runner 有状态门禁：只有 `ready_for_codex` 才执行。
+- runner 有 lock：`.ai-bridge/.runner.lock`。
+- runner 不自动 commit / push。
+- watcher 支持 `fswatch`，也支持轮询 fallback。
+- README 写清楚了角色、状态机、使用方式和安全边界。
+
+## 3. 状态机检查
+
+当前状态机符合方案 B 初版目标：
 
 ```txt
-通过。
+idle
+ready_for_codex
+running
+codex_done
+waiting_for_chatgpt_review
+review_done
+failed
 ```
 
-Codex 没有新增产品方向，也没有擅自推进 UI、功能或业务逻辑。它正确识别了当前产品层待决策点：本地 ready 错题是否允许未同步先复习。
-
-## 3. 协议 / 架构一致性检查
-
-检查项：
-
-- [x] 是否和 `ERROR_SYNC_PROTOCOL.md` 一致
-- [x] 是否和 `RECALL_PROGRESS.md` 当前阶段一致
-- [x] 是否引入新的隐性产品决策
-- [x] 是否需要更新 `DECISIONS.md`
-- [x] 是否需要更新其他文档
-
-结论：
+当前 `.ai-bridge/task-state.json` 是：
 
 ```txt
-通过，但存在两个待决策问题。
+status = idle
+requiresReview = true
+autoCommit = false
 ```
 
-Codex 正确指出：
+这是安全的初始状态。
 
-1. 当前 `src-tauri/src/db/error_repo.rs` 中 `get_due_error_items` 仍要求 `e.remote_id IS NOT NULL`。
-2. 当前错题本 `due_count` 统计也要求 `e.remote_id IS NOT NULL`。
-3. 这和 `DECISIONS.md` 中倾向的 Learning First 策略存在待决张力，但尚未最终确认，因此 Codex 没有直接改代码是正确的。
+## 4. 关键风险
 
-我已再次核对代码搜索结果，确认 `remote_id IS NOT NULL` 出现在：
+### 风险 1：runner 只检查 report 非空，可能误用旧报告
+
+当前 runner 在 Codex 执行后只检查：
+
+```bash
+[[ -s "$REPORT_FILE" ]]
+```
+
+这意味着如果 `.ai-bridge/codex-report.md` 已经存在旧报告，而 Codex 这次没有正确更新报告，runner 仍可能把任务推进到：
 
 ```txt
-src-tauri/src/db/error_repo.rs:584
-src-tauri/src/db/error_repo.rs:755
+waiting_for_chatgpt_review
 ```
 
-## 4. 代码风险观察
+这会造成“看起来执行完成，其实 review 的是旧报告”。
 
-本次 Codex 未改业务代码，未发现业务代码风险。
-
-新增 `.ai-bridge` 文件属于协作元数据，可以接受。
-
-当前仍存在一个独立风险：
+建议修复：
 
 ```txt
-PRD.md 处于删除状态。
+执行前记录 codex-report.md 的 mtime / sha256 / size。
+执行后必须确认 report 有更新。
+或要求 report 中包含当前 taskId / current-plan 标题。
 ```
 
-该删除不是本次 Codex 扩大的改动，但仍需要用户最终确认。建议不要直接删除，优先归档。
+这是我认为进入长期 watcher 前必须修的点。
 
-## 5. 建议
+### 风险 2：无 Codex 命令时可能反复触发
 
-### 建议 1：接受 Codex 本次交付
-
-理由：
-
-- 遵守了 `.ai-bridge/current-plan.md`。
-- 没有修改业务代码。
-- 没有扩大文档删除。
-- 明确标记了产品决策和代码现状之间的张力。
-
-### 建议 2：下一步先处理两个决策
-
-需要用户确认：
-
-1. `PRD.md` 是恢复并归档，还是接受删除？
-2. 是否正式采用“本地 ready 错题可以未同步先复习”？
-
-### 建议 3：确认后再写下一份 Codex 实现计划
-
-如果用户确认采用本地 ready 先复习，下一份计划应要求 Codex：
-
-- 修改 `get_due_error_items`。
-- 修改错题本 `due_count`。
-- 保持 analyze_failed / pending_analysis 不进入复习。
-- 明确无 `remote_id` 的本地复习不生成 review op。
-- 补充 Rust repo 层测试。
-- 跑 `cargo test`。
-
-## 6. 是否建议接受
+当前 runner 如果找不到可用 Codex 命令，会：
 
 ```txt
-建议接受本次 Codex 交付。
+保持 status = ready_for_codex
+写 lastError
+退出 0
 ```
+
+在 watcher 轮询模式下，状态文件被更新后，mtime 改变，可能导致 watcher 再次触发 runner，形成重复提示。
+
+建议修复：
+
+```txt
+无可用 Codex 命令时，将 status 改为 failed。
+或新增 manual_required 状态。
+```
+
+考虑我们当前状态机没有 `manual_required`，建议先用 `failed`。
+
+### 风险 3：默认检测到 codex 就真实执行，需要用户明确知道
+
+Codex 这版 runner 如果检测到本机存在 `codex` 命令，会默认执行：
+
+```txt
+codex exec -C <repo> -a never -s workspace-write ...
+```
+
+这符合“方案 B 自动触发”的方向，但比最保守的 dry-run/manual 模式更进一步。
+
+我认为可以保留，但 README 需要更醒目地说明：
+
+```txt
+一旦 watcher 运行，且 task-state.status = ready_for_codex，就会真实触发 Codex。
+```
+
+或者增加开关：
+
+```txt
+AI_BRIDGE_ENABLE_DEFAULT_CODEX=1
+```
+
+只有显式打开时才使用默认 codex 命令；否则必须配置 `AI_BRIDGE_CODEX_CMD`。
+
+我倾向加这个开关，让方案 B 更安全。
+
+## 5. 是否建议接受
+
+```txt
+建议接受为方案 B v0.1，但不要长期启动 watcher。
+```
+
+当前版本已经可用于手动 runner / dry-run 演练，但进入“开着 watcher 自动跑”的阶段前，需要先完成 v0.2 安全加固。
+
+## 6. 建议下一轮小修
+
+下一轮请 Codex 做一个小任务：
+
+```txt
+ai-bridge v0.2 安全加固
+```
+
+必须修：
+
+1. 防止旧 `codex-report.md` 被误判为本次报告。
+2. 无 Codex 命令时不要保持 `ready_for_codex` 造成 watcher 重复触发。
+3. 明确默认真实执行策略，建议加 `AI_BRIDGE_ENABLE_DEFAULT_CODEX=1` 开关。
+4. README 补充“开启 watcher 后的真实执行风险”。
+5. 增加 dry-run / no-command / stale-report 的验证说明。
+
+## 7. 当前使用建议
+
+目前可以安全使用：
+
+```bash
+AI_BRIDGE_DRY_RUN=1 npm run ai-bridge:run
+```
+
+暂时不建议长期运行：
+
+```bash
+npm run ai-bridge:watch
+```
+
+等 v0.2 安全加固完成后，再正式启用 watcher。

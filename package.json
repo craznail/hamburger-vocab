@@ -4,6 +4,9 @@
   "version": "0.3.0",
   "type": "module",
   "scripts": {
+    "ai-bridge:run": "bash scripts/ai-bridge-runner.sh",
+    "ai-bridge:state": "node scripts/ai-bridge-state.mjs",
+    "ai-bridge:watch": "bash scripts/ai-bridge-watch.sh",
     "dev": "node scripts/vite-dev.mjs",
     "build": "vite build",
     "preview": "vite preview",
