@@ -1,13 +1,13 @@
 {
   "taskId": "error-review-ui-polish",
-  "status": "ready_for_codex",
+  "status": "idle",
   "planPath": ".ai-bridge/current-plan.md",
   "reportPath": ".ai-bridge/codex-report.md",
   "reviewPath": ".ai-bridge/review-notes.md",
   "agent": "codex",
   "requiresReview": true,
   "autoCommit": false,
-  "lastUpdatedAt": "2026-06-28T09:03:20.110Z",
+  "lastUpdatedAt": "2026-07-31T05:25:44.980Z",
   "lastRunAt": "",
   "lastError": "",
   "lastReportFingerprint": null
