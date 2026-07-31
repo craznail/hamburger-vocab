@@ -1,7 +1,7 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { BookOpen, Headphones, Import, Search, Sigma } from 'lucide-vue-next'
+import { BookOpen, GraduationCap, Headphones, Import, Search, Sigma } from 'lucide-vue-next'
 import { useAppStore } from '../stores/useAppStore'
 import BottomNav from '../components/BottomNav.vue'
 
@@ -30,6 +30,11 @@ const deckThemes = [
 
 onMounted(() => {
   store.refreshAll()
+  document.addEventListener('click', closeDeckMenu)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeDeckMenu)
 })
 
 const totals = computed(() => {
@@ -135,6 +140,29 @@ function getProgressStyle(index) {
 
 function openDeck(deckId) {
   router.push({ name: 'DeckDetail', params: { id: deckId } })
+}
+
+const openMenuDeckId = ref(null)
+
+function toggleDeckMenu(deckId) {
+  openMenuDeckId.value = openMenuDeckId.value === deckId ? null : deckId
+}
+
+function closeDeckMenu() {
+  openMenuDeckId.value = null
+}
+
+function goDeckStudy(deck) {
+  closeDeckMenu()
+  router.push({
+    name: 'WordReview',
+    query: { deckId: deck.id, deckName: deck.name, mode: 'practice' },
+  })
+}
+
+function goDeckDictation(deck) {
+  closeDeckMenu()
+  router.push({ name: 'Dictation', query: { deckId: deck.id } })
 }
 
 function goImport() {
@@ -264,11 +292,31 @@ async function focusSearch() {
               </div>
 
               <div class="library-deck-side">
-                <span class="library-deck-menu" aria-hidden="true">
-                  <i />
-                  <i />
-                  <i />
-                </span>
+                <div class="library-deck-menu-wrap" @click.stop @keydown.enter.stop @keydown.space.stop>
+                  <button
+                    class="library-deck-menu"
+                    type="button"
+                    title="更多操作"
+                    :aria-expanded="openMenuDeckId === deck.id"
+                    @click="toggleDeckMenu(deck.id)"
+                  >
+                    <i />
+                    <i />
+                    <i />
+                  </button>
+
+                  <div v-if="openMenuDeckId === deck.id" class="library-deck-dropdown">
+                    <button class="library-deck-dropdown-item" type="button" @click="goDeckStudy(deck)">
+                      <GraduationCap class="h-4 w-4" />
+                      学习
+                    </button>
+                    <button class="library-deck-dropdown-item" type="button" @click="goDeckDictation(deck)">
+                      <Headphones class="h-4 w-4" />
+                      听写
+                    </button>
+                  </div>
+                </div>
+
                 <div class="library-deck-percent">
                   {{ getRatio(deck) }}%
                   <span class="library-deck-chevron">›</span>
@@ -772,9 +820,18 @@ async function focusSearch() {
   gap: 0.58rem;
 }
 
+.library-deck-menu-wrap {
+  position: relative;
+}
+
 .library-deck-menu {
   display: inline-flex;
   gap: 0.22rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  padding: 0.24rem 0.2rem;
+  cursor: pointer;
 }
 
 .library-deck-menu i {
@@ -782,6 +839,45 @@ async function focusSearch() {
   height: 0.22rem;
   border-radius: 999px;
   background: #7b8db2;
+}
+
+.library-deck-menu:hover i {
+  background: #245dff;
+}
+
+.library-deck-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.28rem);
+  z-index: 30;
+  display: grid;
+  gap: 0.08rem;
+  min-width: 7.2rem;
+  border: 1px solid rgba(219, 228, 244, 0.94);
+  border-radius: 0.9rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(250, 252, 255, 0.98));
+  padding: 0.3rem;
+  box-shadow: 0 12px 28px rgba(75, 104, 164, 0.14);
+}
+
+.library-deck-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.46rem;
+  border: 0;
+  border-radius: 0.64rem;
+  background: transparent;
+  padding: 0.48rem 0.58rem;
+  color: #294785;
+  font-size: 0.82rem;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+
+.library-deck-dropdown-item:hover {
+  background: #f1f6ff;
+  color: #245dff;
 }
 
 .library-deck-percent {
