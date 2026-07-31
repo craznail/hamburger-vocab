@@ -142,6 +142,10 @@ function updateKnowledgeOverflow() {
         <div class="review-done-icon">
           <CheckCircle class="h-14 w-14 text-[#2f7cff]" />
         </div>
+        <div class="review-done-pill">
+          <Clock3 class="h-4 w-4" />
+          本轮完成 {{ items.length }} 题
+        </div>
         <h2 class="review-done-title">本轮错题复习完成</h2>
         <p class="review-done-text">这次一共完成 {{ items.length }} 道题。回到错题本继续整理一两道，记忆会更稳。</p>
         <button class="review-primary-button mt-5" type="button" @click="router.push({ name: 'ErrorNotebook' })">返回错题本</button>
@@ -152,7 +156,16 @@ function updateKnowledgeOverflow() {
           <div class="review-hero-glow" aria-hidden="true" />
           <div class="review-hero-grid" :class="{ 'review-hero-grid-no-image': !imageSrc }">
             <div v-if="imageSrc" class="review-hero-media">
-              <img :src="imageSrc" class="review-thumb" @error="handleImageError" />
+              <img :src="imageSrc" class="review-thumb" alt="错题配图" @error="handleImageError" />
+            </div>
+            <div v-else class="review-hero-media review-hero-media-placeholder">
+              <span class="review-hero-placeholder-icon">
+                <NotebookPen class="h-6 w-6" />
+              </span>
+              <div class="review-hero-placeholder-copy">
+                <strong>无配图题目</strong>
+                <span>先根据题干回忆思路，再展开答案核对关键步骤。</span>
+              </div>
             </div>
 
             <div class="review-hero-content">
@@ -341,26 +354,28 @@ function updateKnowledgeOverflow() {
 <style scoped>
 .review-page {
   background:
-    radial-gradient(circle at 18% 0%, rgba(98, 146, 255, 0.16), transparent 24%),
-    radial-gradient(circle at 86% 8%, rgba(171, 204, 255, 0.2), transparent 22%),
+    radial-gradient(circle at 16% 0%, rgba(98, 146, 255, 0.16), transparent 24%),
+    radial-gradient(circle at 86% 7%, rgba(171, 204, 255, 0.18), transparent 22%),
     linear-gradient(180deg, #fffefe 0%, #f8fbff 34%, #edf4ff 100%);
 }
 
 .review-topbar {
   display: grid;
-  grid-template-columns: 3.35rem minmax(0, 1fr) auto;
+  grid-template-columns: 3.05rem minmax(0, 1fr) 5.95rem;
   align-items: center;
-  gap: 0.82rem;
-  padding: 0.95rem 1.15rem 0;
+  gap: 0.72rem;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0.95rem 1rem 0;
 }
 
 .review-nav-button {
   display: grid;
-  width: 3rem;
-  height: 3rem;
+  width: 3.05rem;
+  height: 3.05rem;
   place-items: center;
   border: 1px solid rgba(209, 221, 247, 0.94);
-  border-radius: 1.15rem;
+  border-radius: 1.05rem;
   background: rgba(255, 255, 255, 0.96);
   color: #1e3f8f;
   box-shadow:
@@ -376,26 +391,27 @@ function updateKnowledgeOverflow() {
 .review-title {
   margin: 0;
   color: #132863;
-  font-size: 1.36rem;
+  font-size: 1.28rem;
   line-height: 1.1;
   font-weight: 950;
   letter-spacing: 0.02em;
 }
 
 .review-subtitle {
-  margin: 0.34rem auto 0;
-  max-width: 16rem;
+  margin: 0.28rem auto 0;
+  max-width: 15rem;
   color: #6c82af;
-  font-size: 0.84rem;
-  line-height: 1.42;
-  font-weight: 650;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  font-weight: 700;
 }
 
 .review-progress-pill {
-  min-width: 6.15rem;
-  padding: 0.7rem 0.9rem 0.62rem;
+  min-width: 5.95rem;
+  justify-self: end;
+  padding: 0.62rem 0.82rem 0.56rem;
   border: 1px solid rgba(212, 224, 248, 0.94);
-  border-radius: 1.45rem;
+  border-radius: 1.25rem;
   background: rgba(255, 255, 255, 0.96);
   box-shadow:
     0 16px 30px rgba(80, 110, 176, 0.08),
@@ -403,7 +419,7 @@ function updateKnowledgeOverflow() {
 }
 
 .review-progress-pill-complete {
-  min-width: 5.7rem;
+  min-width: 5.45rem;
 }
 
 .review-progress-numbers {
@@ -417,17 +433,17 @@ function updateKnowledgeOverflow() {
 
 .review-progress-numbers strong {
   color: #1f66ff;
-  font-size: 1.58rem;
+  font-size: 1.45rem;
   line-height: 1;
   font-weight: 950;
 }
 
 .review-progress-numbers span {
-  font-size: 0.92rem;
+  font-size: 0.86rem;
 }
 
 .review-progress-track {
-  margin-top: 0.48rem;
+  margin-top: 0.42rem;
   height: 0.34rem;
   border-radius: 999px;
   background: rgba(221, 229, 243, 0.86);
@@ -442,20 +458,25 @@ function updateKnowledgeOverflow() {
 }
 
 .review-shell {
-  padding: 1.1rem 1rem 2rem;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1rem 1rem 2rem;
 }
 
 .review-shell-with-rating {
-  padding-bottom: calc(9.75rem + var(--safe-area-bottom));
+  padding-bottom: calc(10.5rem + var(--safe-area-bottom));
 }
 
 .review-hero-card,
 .review-answer-card,
+.review-note-preview,
 .review-done-card {
   position: relative;
   overflow: hidden;
+  max-width: 46rem;
+  margin-inline: auto;
   border: 1px solid rgba(197, 216, 248, 0.96);
-  border-radius: 2rem;
+  border-radius: 1.82rem;
   background:
     radial-gradient(circle at 82% 18%, rgba(47, 124, 255, 0.12), transparent 30%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(238, 245, 255, 0.96));
@@ -465,14 +486,14 @@ function updateKnowledgeOverflow() {
 }
 
 .review-hero-card {
-  padding: 1.35rem 1.25rem;
+  padding: 1.18rem 1.08rem 1.08rem;
 }
 
 .review-hero-glow {
   position: absolute;
   inset: auto auto -4rem -3rem;
-  width: 11rem;
-  height: 11rem;
+  width: 10rem;
+  height: 10rem;
   border-radius: 999px;
   background: radial-gradient(circle, rgba(103, 153, 255, 0.12), transparent 70%);
   pointer-events: none;
@@ -482,8 +503,8 @@ function updateKnowledgeOverflow() {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 9rem minmax(0, 1fr);
-  gap: 1.15rem;
+  grid-template-columns: 9.25rem minmax(0, 1fr);
+  gap: 1.08rem;
   align-items: start;
 }
 
@@ -498,9 +519,9 @@ function updateKnowledgeOverflow() {
 
 .review-thumb {
   width: 100%;
-  height: 11.4rem;
+  height: 9.25rem;
   object-fit: cover;
-  border-radius: 1.28rem;
+  border-radius: 1.18rem;
   border: 1px solid rgba(196, 214, 248, 0.96);
   background: rgba(255, 255, 255, 0.94);
   box-shadow:
@@ -508,18 +529,65 @@ function updateKnowledgeOverflow() {
     inset 0 1px 0 rgba(255, 255, 255, 0.98);
 }
 
+.review-hero-media-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 7rem;
+  border: 1px dashed rgba(186, 209, 247, 0.98);
+  border-radius: 1.18rem;
+  padding: 1rem 1rem 0.95rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(242, 247, 255, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98);
+}
+
+.review-hero-placeholder-icon {
+  display: grid;
+  width: 2.8rem;
+  height: 2.8rem;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 0.95rem;
+  background: linear-gradient(180deg, #edf4ff 0%, #e3eeff 100%);
+  color: #2f6fff;
+  box-shadow:
+    0 10px 20px rgba(74, 114, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.review-hero-placeholder-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.review-hero-placeholder-copy strong {
+  color: #14306a;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+.review-hero-placeholder-copy span {
+  color: #667aa6;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .review-hero-content {
   position: relative;
   z-index: 2;
-  min-width: 0;
   display: flex;
+  min-width: 0;
   flex-direction: column;
   align-items: flex-start;
-  padding-right: 7.2rem;
+  padding-right: 5.2rem;
 }
 
 .review-hero-grid-no-image .review-hero-content {
-  padding-right: 8.6rem;
+  max-width: 32rem;
+  padding-top: 0.95rem;
+  padding-right: 5.4rem;
 }
 
 .review-hero-pills {
@@ -549,9 +617,10 @@ function updateKnowledgeOverflow() {
 }
 
 .review-question-text {
+  max-width: 28.5rem;
   margin: 0;
   color: #152b63;
-  font-size: 1.12rem;
+  font-size: 1.04rem;
   line-height: 1.72;
   font-weight: 850;
   white-space: pre-wrap;
@@ -559,18 +628,19 @@ function updateKnowledgeOverflow() {
 
 .review-question-tags-row {
   display: flex;
+  width: 100%;
+  max-width: 28.5rem;
   align-items: flex-start;
   gap: 0.45rem;
   margin-top: 1rem;
-  width: 100%;
 }
 
 .review-question-tags {
-  flex: 1;
   display: flex;
+  min-width: 0;
+  flex: 1;
   flex-wrap: wrap;
   gap: 0.42rem;
-  min-width: 0;
 }
 
 .review-question-tags-collapsed {
@@ -620,7 +690,7 @@ function updateKnowledgeOverflow() {
   border-radius: 1.4rem;
   padding: 0 1.7rem;
   background: linear-gradient(135deg, #2f7cff 0%, #1f66ff 100%);
-  color: white;
+  color: #fff;
   font-size: 1rem;
   font-weight: 900;
   box-shadow:
@@ -629,17 +699,20 @@ function updateKnowledgeOverflow() {
 }
 
 .review-expand-answer {
+  min-width: 17rem;
   margin-top: 1.2rem;
+  padding-right: 1.5rem;
+  padding-left: 1.5rem;
 }
 
 .review-hero-ornament {
   position: absolute;
-  right: 0.35rem;
-  bottom: 0.1rem;
-  width: 9.5rem;
-  height: 10rem;
+  right: 0.5rem;
+  bottom: 0.55rem;
+  width: 7.25rem;
+  height: 7.6rem;
   pointer-events: none;
-  opacity: 0.82;
+  opacity: 0.54;
 }
 
 .review-cube {
@@ -661,8 +734,8 @@ function updateKnowledgeOverflow() {
   width: 0.92rem;
   height: 0.92rem;
   transform: skewY(-30deg);
-  border-left: 0;
   border-bottom: 0;
+  border-left: 0;
 }
 
 .review-cube::after {
@@ -670,71 +743,68 @@ function updateKnowledgeOverflow() {
   width: 0.92rem;
   height: calc(100% - 0.1rem);
   transform: skewY(30deg);
-  border-left: 0;
   border-top: 0;
+  border-left: 0;
 }
 
 .review-cube-a {
-  right: 1.2rem;
-  top: 0.8rem;
-  width: 2rem;
-  height: 2rem;
-}
-
-.review-cube-b {
-  right: 2.9rem;
-  top: 2.8rem;
-  width: 2.25rem;
-  height: 2.25rem;
-}
-
-.review-cube-c {
-  right: 0.85rem;
-  top: 3.2rem;
-  width: 2.15rem;
-  height: 2.15rem;
-}
-
-.review-cube-d {
-  right: 4.7rem;
-  top: 4.5rem;
+  top: 0.45rem;
+  right: 0.95rem;
   width: 1.7rem;
   height: 1.7rem;
 }
 
+.review-cube-b {
+  top: 2.15rem;
+  right: 2.35rem;
+  width: 1.9rem;
+  height: 1.9rem;
+}
+
+.review-cube-c {
+  top: 2.45rem;
+  right: 0.65rem;
+  width: 1.82rem;
+  height: 1.82rem;
+}
+
+.review-cube-d {
+  top: 3.85rem;
+  right: 3.9rem;
+  width: 1.38rem;
+  height: 1.38rem;
+}
+
 .review-cube-e {
-  right: 3.3rem;
-  bottom: 0.75rem;
-  width: 1.95rem;
-  height: 1.95rem;
+  right: 2.7rem;
+  bottom: 0.25rem;
+  width: 1.62rem;
+  height: 1.62rem;
 }
 
 .review-answer-card {
   margin-top: 1.1rem;
-  border-radius: 2rem;
+  padding: 0.78rem;
   background:
     radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.98), transparent 35%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 249, 255, 0.98) 100%);
-  box-shadow:
-    0 18px 42px rgba(97, 126, 190, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98);
 }
 
 .review-tabs {
   display: flex;
   gap: 0.28rem;
-  padding: 0.9rem 0.9rem 0;
+  padding: 0.15rem 0.15rem 0;
 }
 
 .review-tab {
   position: relative;
+  min-height: 3.15rem;
   flex: 1;
-  min-height: 3.45rem;
   border: 0;
   border-radius: 1.3rem 1.3rem 0 0;
   background: linear-gradient(180deg, rgba(246, 249, 255, 0.96) 0%, rgba(239, 245, 255, 0.96) 100%);
   color: #8091b6;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 900;
 }
 
@@ -747,8 +817,8 @@ function updateKnowledgeOverflow() {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: 0.4rem;
-  width: 3.4rem;
+  bottom: 0.38rem;
+  width: 3rem;
   height: 0.22rem;
   border-radius: 999px;
   background: linear-gradient(90deg, #1f66ff 0%, #4d8dff 100%);
@@ -756,14 +826,14 @@ function updateKnowledgeOverflow() {
 }
 
 .review-tab-panel {
-  padding: 0 0.9rem 0.95rem;
+  padding: 0 0.15rem 0.15rem;
 }
 
 .review-content-card {
   border: 1px solid rgba(224, 233, 247, 0.96);
-  border-radius: 1.55rem;
+  border-radius: 0 0 1.45rem 1.45rem;
   background: rgba(255, 255, 255, 0.98);
-  padding: 1.15rem;
+  padding: 1.18rem 1.05rem;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98);
 }
 
@@ -785,21 +855,21 @@ function updateKnowledgeOverflow() {
 
 .review-card-head h2 {
   margin: 0;
+  color: #17306b;
   font-size: 1rem;
   font-weight: 900;
-  color: #17306b;
 }
 
 .review-content-text {
   margin: 0;
-  white-space: pre-wrap;
   color: #1b315f;
   font-size: 0.97rem;
   line-height: 1.8;
+  white-space: pre-wrap;
 }
 
 .review-empty-state {
-  padding: 0.25rem 0;
+  padding: 0.15rem 0;
 }
 
 .review-empty-state p {
@@ -809,375 +879,12 @@ function updateKnowledgeOverflow() {
   line-height: 1.72;
 }
 
-.review-done-card {
-  padding: 1.8rem 1.4rem;
-  text-align: center;
-}
-
-.review-done-icon {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1rem;
-}
-
-.review-done-title {
-  margin: 0;
-  color: #1d2e62;
-  font-size: 1.42rem;
-  font-weight: 900;
-}
-
-.review-done-text {
-  margin: 0.6rem auto 0;
-  max-width: 20rem;
-  color: #6d7ea9;
-  font-size: 0.95rem;
-  line-height: 1.7;
-}
-
-.review-rating-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
-  padding: 0.9rem 0.95rem calc(var(--safe-area-bottom) + 0.92rem);
-  background: linear-gradient(180deg, rgba(244, 248, 255, 0) 0%, rgba(244, 248, 255, 0.84) 28%, rgba(244, 248, 255, 0.95) 100%);
-}
-
-.review-rating-shell {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.72rem;
-  padding: 0.72rem;
-  border: 1px solid rgba(215, 226, 245, 0.96);
-  border-radius: 1.7rem;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(18px);
-  box-shadow:
-    0 18px 36px rgba(79, 107, 172, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
-}
-
-.review-score {
-  display: flex;
-  min-height: 5rem;
-  align-items: center;
-  gap: 0.72rem;
-  border: 1px solid transparent;
-  border-radius: 1.4rem;
-  padding: 0.95rem 0.88rem;
-  text-align: left;
-  box-shadow:
-    0 10px 22px rgba(95, 119, 173, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
-}
-
-.review-score-red {
-  border-color: rgba(255, 194, 194, 0.98);
-  background: linear-gradient(180deg, rgba(255, 251, 251, 0.98), rgba(255, 244, 244, 0.98));
-  color: #ef4e53;
-}
-
-.review-score-warm {
-  border-color: rgba(255, 216, 171, 0.98);
-  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(255, 245, 229, 0.98));
-  color: #f29118;
-}
-
-.review-score-green {
-  border-color: rgba(185, 237, 197, 0.98);
-  background: linear-gradient(180deg, rgba(248, 255, 250, 0.98), rgba(238, 250, 242, 0.98));
-  color: #18a957;
-}
-
-.review-score-icon {
-  display: inline-grid;
-  width: 2.2rem;
-  height: 2.2rem;
-  place-items: center;
-  flex-shrink: 0;
-  border-radius: 999px;
-  border: 2px solid currentColor;
-  font-size: 1rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.review-score-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.review-score-title {
-  font-size: 1rem;
-  font-weight: 900;
-}
-
-.review-score-hint {
-  margin-top: 0.2rem;
-  color: rgba(41, 55, 90, 0.68);
-  font-size: 0.76rem;
-  line-height: 1.35;
-}
-
-@media (max-width: 720px) {
-  .review-topbar {
-    grid-template-columns: 3rem minmax(0, 1fr);
-    gap: 0.7rem;
-    padding-right: 1rem;
-    padding-left: 1rem;
-  }
-
-  .review-nav-button {
-    width: 2.8rem;
-    height: 2.8rem;
-    border-radius: 1.05rem;
-  }
-
-  .review-title {
-    font-size: 1.22rem;
-  }
-
-  .review-subtitle {
-    font-size: 0.8rem;
-  }
-
-  .review-progress-pill {
-    grid-column: 2;
-    justify-self: end;
-    min-width: 5.5rem;
-    margin-top: 0.15rem;
-    padding: 0.58rem 0.8rem 0.52rem;
-  }
-
-  .review-progress-numbers strong {
-    font-size: 1.38rem;
-  }
-
-  .review-shell {
-    padding-top: 1rem;
-    padding-right: 1rem;
-    padding-left: 1rem;
-  }
-
-  .review-hero-card {
-    padding: 1.15rem 1rem 1rem;
-  }
-
-  .review-hero-grid {
-    grid-template-columns: 5.9rem minmax(0, 1fr);
-    gap: 0.95rem;
-  }
-
-  .review-thumb {
-    height: 8.2rem;
-    border-radius: 1.05rem;
-  }
-
-  .review-hero-content,
-  .review-hero-grid-no-image .review-hero-content {
-    padding-right: 0;
-  }
-
-  .review-question-text {
-    font-size: 0.98rem;
-    line-height: 1.64;
-  }
-
-  .review-hero-ornament {
-    right: -0.3rem;
-    bottom: -0.1rem;
-    width: 7rem;
-    height: 7rem;
-    opacity: 0.5;
-  }
-
-  .review-expand-answer,
-  .review-primary-button {
-    min-height: 3.55rem;
-    width: 100%;
-    font-size: 0.96rem;
-  }
-
-  .review-tabs {
-    padding: 0.72rem 0.72rem 0;
-  }
-
-  .review-tab {
-    min-height: 3rem;
-    font-size: 0.9rem;
-  }
-
-  .review-tab-panel {
-    padding: 0 0.72rem 0.72rem;
-  }
-
-  .review-content-card {
-    padding: 1rem;
-  }
-
-  .review-rating-bar {
-    padding-right: 0.8rem;
-    padding-left: 0.8rem;
-  }
-
-  .review-rating-shell {
-    gap: 0.6rem;
-    padding: 0.62rem;
-  }
-
-  .review-score {
-    min-height: 4.7rem;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.52rem;
-    padding: 0.82rem 0.74rem;
-  }
-
-  .review-score-icon {
-    width: 2rem;
-    height: 2rem;
-  }
-
-  .review-score-title {
-    font-size: 0.94rem;
-  }
-
-  .review-score-hint {
-    font-size: 0.72rem;
-  }
-}
-
-/* Strong visual alignment with the approved UI mock: keep the header single-row on phones,
-   make the hero card more compact and make the bottom rating area feel like a premium floating bar. */
-.review-topbar {
-  max-width: 46rem;
-  margin: 0 auto;
-  grid-template-columns: 3.05rem minmax(0, 1fr) 5.85rem;
-}
-
-.review-progress-pill {
-  grid-column: auto;
-  justify-self: end;
-  margin-top: 0;
-}
-
-.review-hero-card,
-.review-answer-card,
-.review-note-preview,
-.review-done-card {
-  max-width: 46rem;
-  margin-inline: auto;
-}
-
-.review-hero-card {
-  border-radius: 1.82rem;
-  padding: 1.18rem 1.08rem 1.08rem;
-}
-
-.review-hero-pills {
-  justify-content: flex-start;
-}
-
-.review-hero-grid {
-  display: grid;
-  grid-template-columns: 9.25rem minmax(0, 1fr);
-  gap: 1.08rem;
-  align-items: start;
-}
-
-.review-thumb {
-  height: 9.25rem;
-  border-radius: 1.18rem;
-}
-
-.review-hero-content {
-  padding-right: 5.2rem;
-}
-
-.review-hero-grid-no-image .review-hero-content {
-  max-width: 32rem;
-  padding-right: 6rem;
-}
-
-.review-question-text {
-  max-width: 28.5rem;
-  font-size: 1.04rem;
-  line-height: 1.72;
-}
-
-.review-question-tags-row {
-  max-width: 28.5rem;
-}
-
-.review-expand-answer {
-  align-self: flex-start;
-  min-width: 17rem;
-  padding-right: 1.5rem;
-  padding-left: 1.5rem;
-}
-
-.review-hero-ornament {
-  right: 0.5rem;
-  bottom: 0.55rem;
-  width: 7.25rem;
-  height: 7.6rem;
-  opacity: 0.54;
-}
-
-.review-cube-a {
-  right: 0.95rem;
-  top: 0.45rem;
-  width: 1.7rem;
-  height: 1.7rem;
-}
-
-.review-cube-b {
-  right: 2.35rem;
-  top: 2.15rem;
-  width: 1.9rem;
-  height: 1.9rem;
-}
-
-.review-cube-c {
-  right: 0.65rem;
-  top: 2.45rem;
-  width: 1.82rem;
-  height: 1.82rem;
-}
-
-.review-cube-d {
-  right: 3.9rem;
-  top: 3.85rem;
-  width: 1.38rem;
-  height: 1.38rem;
-}
-
-.review-cube-e {
-  right: 2.7rem;
-  bottom: 0.25rem;
-  width: 1.62rem;
-  height: 1.62rem;
-}
-
-.review-answer-card {
-  padding: 0.78rem;
-}
-
-.review-content-card {
-  border-radius: 0 0 1.45rem 1.45rem;
-  padding: 1.18rem 1.05rem;
-}
-
 .review-note-preview {
   display: grid;
+  width: 100%;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.74rem;
-  width: 100%;
   margin-top: 0.98rem;
   padding: 1rem 1.04rem;
   text-align: left;
@@ -1211,6 +918,122 @@ function updateKnowledgeOverflow() {
   color: #5e6f99;
   font-size: 0.84rem;
   line-height: 1.42;
+}
+
+.review-done-card {
+  padding: 1.85rem 1.35rem 1.5rem;
+  text-align: center;
+}
+
+.review-done-icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.9rem;
+}
+
+.review-done-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  min-height: 2rem;
+  padding: 0 0.84rem;
+  border: 1px solid rgba(194, 213, 248, 0.96);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2d69e7;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.review-done-title {
+  margin: 0.92rem 0 0;
+  color: #1d2e62;
+  font-size: 1.42rem;
+  font-weight: 900;
+}
+
+.review-done-text {
+  max-width: 20rem;
+  margin: 0.6rem auto 0;
+  color: #6d7ea9;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.review-rating-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  z-index: 30;
+  width: min(calc(100vw - 1.8rem), 46rem);
+  transform: translateX(-50%);
+  padding: 0.9rem 0 calc(var(--safe-area-bottom) + 0.92rem);
+  background: linear-gradient(180deg, rgba(244, 248, 255, 0) 0%, rgba(244, 248, 255, 0.84) 28%, rgba(244, 248, 255, 0.95) 100%);
+}
+
+.review-rating-shell {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.58rem;
+  padding: 0.64rem;
+  border: 1px solid rgba(215, 226, 245, 0.96);
+  border-radius: 1.55rem;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 18px 36px rgba(79, 107, 172, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(18px);
+}
+
+.review-score {
+  display: flex;
+  min-height: 5rem;
+  align-items: center;
+  gap: 0.62rem;
+  border: 1px solid transparent;
+  border-radius: 1.28rem;
+  padding: 0.82rem 0.68rem;
+  text-align: left;
+  box-shadow:
+    0 10px 22px rgba(95, 119, 173, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.review-score-red {
+  border-color: rgba(255, 194, 194, 0.98);
+  background: linear-gradient(180deg, rgba(255, 251, 251, 0.98), rgba(255, 244, 244, 0.98));
+  color: #ef4e53;
+}
+
+.review-score-warm {
+  border-color: rgba(255, 216, 171, 0.98);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(255, 245, 229, 0.98));
+  color: #f29118;
+}
+
+.review-score-green {
+  border-color: rgba(185, 237, 197, 0.98);
+  background: linear-gradient(180deg, rgba(248, 255, 250, 0.98), rgba(238, 250, 242, 0.98));
+  color: #18a957;
+}
+
+.review-score-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.review-score-title {
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.review-score-hint {
+  margin-top: 0.2rem;
+  color: rgba(41, 55, 90, 0.68);
+  font-size: 0.76rem;
+  line-height: 1.35;
 }
 
 .review-face {
@@ -1258,19 +1081,123 @@ function updateKnowledgeOverflow() {
   border-radius: 0 0 999px 999px;
 }
 
-.review-rating-shell {
-  gap: 0.58rem;
-  padding: 0.64rem;
-  border-radius: 1.55rem;
-}
+@media (max-width: 720px) {
+  .review-topbar {
+    grid-template-columns: 2.9rem minmax(0, 1fr) 5.45rem;
+    gap: 0.52rem;
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
 
-.review-score {
-  min-height: 5rem;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.62rem;
-  border-radius: 1.28rem;
-  padding: 0.82rem 0.68rem;
+  .review-nav-button {
+    width: 2.9rem;
+    height: 2.9rem;
+  }
+
+  .review-title {
+    font-size: 1.24rem;
+  }
+
+  .review-subtitle {
+    font-size: 0.72rem;
+  }
+
+  .review-progress-pill {
+    min-width: 5.45rem;
+    padding: 0.58rem 0.8rem 0.52rem;
+  }
+
+  .review-progress-numbers strong {
+    font-size: 1.38rem;
+  }
+
+  .review-shell {
+    padding: 1rem 0.95rem 2rem;
+  }
+
+  .review-hero-card {
+    padding: 1.15rem 1rem 1rem;
+  }
+
+  .review-hero-grid {
+    grid-template-columns: 6.35rem minmax(0, 1fr);
+    gap: 0.95rem;
+  }
+
+  .review-hero-grid-no-image {
+    gap: 0.78rem;
+  }
+
+  .review-hero-media-placeholder {
+    min-height: 6.1rem;
+    padding: 0.9rem;
+  }
+
+  .review-thumb {
+    height: 6.35rem;
+    border-radius: 1.05rem;
+  }
+
+  .review-hero-content,
+  .review-hero-grid-no-image .review-hero-content {
+    padding-top: 0;
+    padding-right: 0;
+  }
+
+  .review-question-text {
+    font-size: 0.98rem;
+    line-height: 1.64;
+  }
+
+  .review-hero-ornament {
+    right: -0.3rem;
+    bottom: -0.1rem;
+    width: 7rem;
+    height: 7rem;
+    opacity: 0.5;
+  }
+
+  .review-expand-answer,
+  .review-primary-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 3.55rem;
+    font-size: 0.96rem;
+  }
+
+  .review-tab {
+    min-height: 3rem;
+    font-size: 0.9rem;
+  }
+
+  .review-content-card {
+    padding: 1rem;
+  }
+
+  .review-rating-bar {
+    width: calc(100vw - 1.25rem);
+  }
+
+  .review-rating-shell {
+    gap: 0.6rem;
+    padding: 0.62rem;
+  }
+
+  .review-score {
+    min-height: 4.7rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.52rem;
+    padding: 0.82rem 0.74rem;
+  }
+
+  .review-score-title {
+    font-size: 0.94rem;
+  }
+
+  .review-score-hint {
+    font-size: 0.72rem;
+  }
 }
 
 @media (max-width: 420px) {
@@ -1292,7 +1219,6 @@ function updateKnowledgeOverflow() {
   }
 
   .review-subtitle {
-    font-size: 0.72rem;
     transform: scale(0.94);
     transform-origin: center;
   }
@@ -1304,23 +1230,31 @@ function updateKnowledgeOverflow() {
     padding-left: 0.68rem;
   }
 
+  .review-hero-card {
+    padding-right: 0.92rem;
+    padding-left: 0.92rem;
+  }
+
   .review-hero-grid {
-    grid-template-columns: 6.35rem minmax(0, 1fr);
     gap: 0.74rem;
   }
 
-  .review-thumb {
-    height: 6.35rem;
+  .review-hero-media-placeholder {
+    gap: 0.7rem;
+    min-height: 5.8rem;
+    padding: 0.85rem;
   }
 
   .review-question-text {
-    font-size: 0.98rem;
     line-height: 1.58;
   }
 
+  .review-note-preview {
+    gap: 0.58rem;
+    padding: 0.9rem;
+  }
+
   .review-score {
-    flex-direction: column;
-    align-items: flex-start;
     gap: 0.44rem;
     padding: 0.72rem 0.58rem;
   }
@@ -1333,22 +1267,8 @@ function updateKnowledgeOverflow() {
 
 @media (min-width: 721px) {
   .review-shell {
-    max-width: 48rem;
-    margin: 0 auto;
     padding-right: 1.5rem;
     padding-left: 1.5rem;
-  }
-
-  .review-rating-bar {
-    left: 50%;
-    right: auto;
-    width: min(calc(100vw - 2rem), 50rem);
-    transform: translateX(-50%);
-  }
-
-  .review-rating-shell {
-    margin: 0 auto;
-    max-width: 46rem;
   }
 
   .review-expand-answer {
