@@ -11,6 +11,9 @@ function defaults() {
     errorNotebook: {
       enableMockDataFallback: false,
     },
+    sync: {
+      serverUrl: 'http://10.0.2.2:3000',
+    },
   }
 }
 
@@ -29,6 +32,10 @@ function mergeSettings(base, saved = {}) {
     errorNotebook: {
       ...base.errorNotebook,
       ...saved.errorNotebook,
+    },
+    sync: {
+      ...base.sync,
+      ...saved.sync,
     },
   }
 }

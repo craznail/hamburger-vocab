@@ -11,22 +11,27 @@ import {
   Lightbulb,
   NotebookPen,
   PencilLine,
+  RefreshCw,
   Save,
   Sparkles,
 } from 'lucide-vue-next'
 import * as errorApi from '../api/errorItem'
+import RichText from '../components/RichText.vue'
 
 type EditableSection = 'question' | 'answer' | 'analysis' | 'mistake' | 'notes'
 
 const route = useRoute()
 const router = useRouter()
 const item = ref<errorApi.ErrorItem | null>(null)
+const conflicts = ref<errorApi.ErrorSyncConflict[]>([])
 const saving = ref(false)
+const retryingAnalysis = ref(false)
 const editingSection = ref<EditableSection | null>(null)
 const saveMessage = ref('')
 const activeTab = ref<'answer' | 'mistake'>('answer')
 const knowledgeExpanded = ref(false)
 const knowledgeOverflowing = ref(false)
+const localImageFailed = ref(false)
 const knowledgeTagsRef = ref<HTMLElement | null>(null)
 const questionEditorRef = ref<HTMLTextAreaElement | null>(null)
 const answerEditorRef = ref<HTMLTextAreaElement | null>(null)
@@ -42,7 +47,12 @@ const form = ref({
   knowledgePointsText: '',
 })
 
-const imageSrc = computed(() => item.value?.localImagePath ? convertFileSrc(item.value.localImagePath) : item.value?.remoteImageUrl || '')
+const imageSrc = computed(() => {
+  if (item.value?.localImagePath && !localImageFailed.value) {
+    return convertFileSrc(item.value.localImagePath)
+  }
+  return item.value?.remoteImageUrl || ''
+})
 const knowledgePoints = computed(() => form.value.knowledgePointsText.split(/[、,\n]/).map(x => x.trim()).filter(Boolean))
 
 let knowledgeResizeObserver: ResizeObserver | null = null
@@ -83,8 +93,13 @@ watch(
 )
 
 async function load() {
-  const items = await errorApi.getErrorItems()
+  const [items, nextConflicts] = await Promise.all([
+    errorApi.getErrorItems(),
+    errorApi.getErrorSyncConflicts(),
+  ])
   item.value = items.find(x => x.id === route.params.id) || null
+  conflicts.value = nextConflicts
+  localImageFailed.value = false
   if (item.value) {
     form.value.questionText = item.value.questionText || ''
     form.value.answerText = item.value.answerText || ''
@@ -93,6 +108,44 @@ async function load() {
     form.value.userNotes = item.value.userNotes || ''
     form.value.knowledgePointsText = errorApi.parseKnowledgePoints(item.value.knowledgePoints).join('、')
     knowledgeExpanded.value = false
+  }
+}
+
+const itemConflict = computed(() => conflicts.value.find(conflict => conflict.localItemId === item.value?.id) || null)
+const canRetryAnalyze = computed(() => item.value?.syncStatus === 'analyze_failed' && Boolean(item.value?.localImagePath))
+const conflictBanner = computed(() => {
+  if (!itemConflict.value) return null
+  switch (itemConflict.value.reason) {
+    case 'validation_error':
+      return {
+        title: '这道题还不能同步',
+        text: '服务端拒绝了这次同步。通常是因为 AI 分析还没完成，或图片信息还不完整。',
+        showResolveActions: false,
+      }
+    case 'not_found':
+      return {
+        title: '远端记录不存在',
+        text: '这道题对应的远端记录没有找到。先确认本地内容，再重新同步本地版本。',
+        showResolveActions: false,
+      }
+    case 'version_conflict':
+      return {
+        title: '这道题和远端版本发生了冲突',
+        text: '你本地的修改还在。选一个方向继续同步就行。',
+        showResolveActions: true,
+      }
+    default:
+      return {
+        title: '这道题暂时无法同步',
+        text: '同步时遇到了未分类的问题。先保留本地内容，稍后再试一次更稳妥。',
+        showResolveActions: false,
+      }
+  }
+})
+
+function handleImageError() {
+  if (item.value?.localImagePath && !localImageFailed.value) {
+    localImageFailed.value = true
   }
 }
 
@@ -174,6 +227,46 @@ async function toggleSectionEdit(section: EditableSection) {
     activeTab.value = 'answer'
   }
 }
+
+async function keepLocalVersion() {
+  if (!item.value || saving.value) return
+  saving.value = true
+  try {
+    await errorApi.resolveErrorSyncConflictKeepLocal(item.value.id)
+    await load()
+    saveMessage.value = '已保留本地修改，等待重新同步'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function acceptRemoteVersion() {
+  if (!item.value || saving.value) return
+  saving.value = true
+  try {
+    await errorApi.resolveErrorSyncConflictAcceptRemote(item.value.id)
+    await load()
+    saveMessage.value = '已接受远端版本'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function retryAnalyze() {
+  if (!item.value || retryingAnalysis.value) return
+  retryingAnalysis.value = true
+  saveMessage.value = ''
+  try {
+    await errorApi.analyzeErrorDraft(item.value.id)
+    await load()
+    saveMessage.value = 'AI 分析已重新完成，可继续编辑或同步'
+  } catch (e) {
+    await load()
+    saveMessage.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    retryingAnalysis.value = false
+  }
+}
 </script>
 
 <template>
@@ -189,12 +282,45 @@ async function toggleSectionEdit(section: EditableSection) {
     </header>
 
     <main v-if="item" class="error-detail-main">
+      <section v-if="itemConflict && conflictBanner" class="mx-4 mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p class="font-semibold">{{ conflictBanner.title }}</p>
+        <p class="mt-1 text-xs leading-5 text-amber-700">{{ conflictBanner.text }}</p>
+        <div v-if="conflictBanner.showResolveActions" class="mt-3 flex gap-2">
+          <button class="error-secondary-button !h-10 !px-4" type="button" :disabled="saving" @click="keepLocalVersion">
+            保留我的修改
+          </button>
+          <button class="error-primary-button !h-10 !px-4" type="button" :disabled="saving" @click="acceptRemoteVersion">
+            接受远端版本
+          </button>
+        </div>
+      </section>
+
+      <section
+        v-if="canRetryAnalyze"
+        class="mx-4 mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900"
+      >
+        <p class="font-semibold">AI 分析失败</p>
+        <p class="mt-1 text-xs leading-5 text-sky-800">题目图片和你的编辑内容都还在本地。重新分析成功后，这道题才会进入同步队列。</p>
+        <div class="mt-3 flex gap-2">
+          <button
+            class="error-primary-button !h-10 !px-4"
+            type="button"
+            :disabled="retryingAnalysis"
+            @click="retryAnalyze"
+          >
+            <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': retryingAnalysis }" />
+            {{ retryingAnalysis ? '重新分析中' : '重试 AI 分析' }}
+          </button>
+        </div>
+      </section>
+
       <section class="error-hero-card">
         <div class="error-hero-top">
           <img
             v-if="imageSrc"
             :src="imageSrc"
             class="error-thumb"
+            @error="handleImageError"
           />
 
           <div class="error-hero-content">
@@ -213,12 +339,17 @@ async function toggleSectionEdit(section: EditableSection) {
                 </button>
               </div>
 
+              <RichText
+                v-if="!isEditing('question')"
+                class="error-question-editor"
+                :text="form.questionText"
+                fallback="把题干整理成自己一眼能读懂的版本"
+              />
               <textarea
+                v-else
                 ref="questionEditorRef"
                 v-model="form.questionText"
                 class="error-editor error-question-editor"
-                :class="{ 'error-editor-readonly': !isEditing('question') }"
-                :readonly="!isEditing('question')"
                 placeholder="把题干整理成自己一眼能读懂的版本"
                 @input="syncEditorHeight(questionEditorRef)"
               />
@@ -300,12 +431,17 @@ async function toggleSectionEdit(section: EditableSection) {
                     <PencilLine v-else class="h-4 w-4" />
                   </button>
                 </div>
+                <RichText
+                  v-if="!isEditing('answer')"
+                  class="error-content-text"
+                  :text="form.answerText"
+                  fallback="暂无答案"
+                />
                 <textarea
+                  v-else
                   ref="answerEditorRef"
                   v-model="form.answerText"
                   class="error-editor error-content-editor error-answer-editor"
-                  :class="{ 'error-editor-readonly': !isEditing('answer') }"
-                  :readonly="!isEditing('answer')"
                   placeholder="用最短路径写出标准答案"
                   @input="syncEditorHeight(answerEditorRef)"
                 />
@@ -329,12 +465,17 @@ async function toggleSectionEdit(section: EditableSection) {
                     <PencilLine v-else class="h-4 w-4" />
                   </button>
                 </div>
+                <RichText
+                  v-if="!isEditing('analysis')"
+                  class="error-content-text"
+                  :text="form.analysis"
+                  fallback="暂无解析"
+                />
                 <textarea
+                  v-else
                   ref="analysisEditorRef"
                   v-model="form.analysis"
                   class="error-editor error-content-editor error-analysis-editor"
-                  :class="{ 'error-editor-readonly': !isEditing('analysis') }"
-                  :readonly="!isEditing('analysis')"
                   placeholder="把关键思路、公式、判断步骤串成一段顺畅的解析"
                   @input="syncEditorHeight(analysisEditorRef)"
                 />
@@ -349,7 +490,7 @@ async function toggleSectionEdit(section: EditableSection) {
                   <Brain class="h-5 w-5 text-[#ff786d]" />
                   <h2>错答记录</h2>
                 </div>
-                <p class="error-content-text">{{ item.wrongAnswerText }}</p>
+                <RichText class="error-content-text" :text="item.wrongAnswerText" />
               </section>
 
               <section class="error-content-section" :class="{ 'error-content-section-divider': item.wrongAnswerText }">
@@ -370,12 +511,17 @@ async function toggleSectionEdit(section: EditableSection) {
                     <PencilLine v-else class="h-4 w-4" />
                   </button>
                 </div>
+                <RichText
+                  v-if="!isEditing('mistake')"
+                  class="error-content-text"
+                  :text="form.mistakeAnalysis"
+                  fallback="暂无错因分析"
+                />
                 <textarea
+                  v-else
                   ref="mistakeEditorRef"
                   v-model="form.mistakeAnalysis"
                   class="error-editor error-content-editor error-note-editor"
-                  :class="{ 'error-editor-readonly': !isEditing('mistake') }"
-                  :readonly="!isEditing('mistake')"
                   placeholder="记录这次真正卡住的点：概念混淆、漏条件、粗心还是步骤断裂"
                   @input="syncEditorHeight(mistakeEditorRef)"
                 />
@@ -399,12 +545,17 @@ async function toggleSectionEdit(section: EditableSection) {
                     <PencilLine v-else class="h-4 w-4" />
                   </button>
                 </div>
+                <RichText
+                  v-if="!isEditing('notes')"
+                  class="error-content-text"
+                  :text="form.userNotes"
+                  fallback="暂无笔记"
+                />
                 <textarea
+                  v-else
                   ref="notesEditorRef"
                   v-model="form.userNotes"
                   class="error-editor error-content-editor error-note-editor"
-                  :class="{ 'error-editor-readonly': !isEditing('notes') }"
-                  :readonly="!isEditing('notes')"
                   placeholder="写一句下次看到这类题先做什么、先检查什么"
                   @input="syncEditorHeight(notesEditorRef)"
                 />

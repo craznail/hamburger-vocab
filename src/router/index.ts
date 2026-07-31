@@ -10,6 +10,11 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/study',
     name: 'Study',
+    component: () => import('../pages/TodayPage.vue'),
+  },
+  {
+    path: '/study/word',
+    name: 'WordReview',
     component: () => import('../pages/StudyPage.vue'),
   },
   {
@@ -36,6 +41,11 @@ const routes: RouteRecordRaw[] = [
     path: '/settings',
     name: 'Settings',
     component: () => import('../pages/SettingsPage.vue'),
+  },
+  {
+    path: '/sync-server',
+    name: 'SyncServer',
+    component: () => import('../pages/SyncServerPage.vue'),
   },
   {
     path: '/profile',

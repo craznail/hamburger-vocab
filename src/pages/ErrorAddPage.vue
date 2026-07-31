@@ -1,26 +1,34 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import {
   ArrowLeft,
   Brain,
   Check,
+  ChevronDown,
   Ellipsis,
   ImagePlus,
   Lightbulb,
   Loader,
+  Lock,
   NotebookPen,
   Sparkles,
   WandSparkles,
 } from 'lucide-vue-next'
 import * as errorApi from '../api/errorItem'
+import { useErrorNotebookStore } from '../stores/useErrorNotebookStore'
 
 const router = useRouter()
+const notebookStore = useErrorNotebookStore()
+const { notebooks, loading } = storeToRefs(notebookStore)
 const draft = ref<errorApi.ErrorDraft | null>(null)
 const item = ref<errorApi.ErrorItem | null>(null)
 const status = ref('')
 const busy = ref(false)
+const notebookMessage = ref('')
+const selectedNotebookId = ref('')
 const activeTab = ref<'answer' | 'mistake'>('answer')
 const form = ref({
   questionText: '',
@@ -33,6 +41,18 @@ const form = ref({
 
 const imageSrc = computed(() => draft.value?.localImagePath ? convertFileSrc(draft.value.localImagePath) : '')
 const knowledgePoints = computed(() => form.value.knowledgePointsText.split(/[、,\n]/).map(x => x.trim()).filter(Boolean))
+const selectedNotebook = computed(() => notebooks.value.find(notebook => notebook.id === selectedNotebookId.value) || null)
+const notebookLocked = computed(() => Boolean(draft.value))
+const hasNotebookLoadError = computed(() => Boolean(notebookMessage.value) && notebooks.value.length === 0)
+const canChooseImage = computed(() => !busy.value && !hasNotebookLoadError.value && Boolean(selectedNotebookId.value) && notebooks.value.length > 0)
+const selectorHint = computed(() => {
+  if (hasNotebookLoadError.value) return notebookMessage.value
+  if (!selectedNotebook.value) return loading.value ? '正在加载错题本...' : '还没有可用错题本，暂时无法上传题目图片'
+  return notebookLocked.value
+    ? '本次新增的图片和分析结果都会保存在这里'
+    : '上传前可以切换，创建草稿后会锁定归属'
+})
+const selectorStatusText = computed(() => notebookLocked.value ? '已锁定' : '可切换')
 const stageTitle = computed(() => {
   if (busy && !item.value) return '正在让 AI 整理这道题'
   if (item.value) return 'AI 已整理完成，确认后保存'
@@ -44,6 +64,23 @@ const stageHint = computed(() => {
   if (item.value) return '你可以直接顺着这张卡片确认题干、答案、解析和错因'
   if (draft.value) return status.value || '草稿已创建'
   return '建议先拍完整题面，后续可以在卡片里再细修内容'
+})
+
+watch(notebooks, (nextNotebooks) => {
+  if (notebookLocked.value) return
+  if (selectedNotebookId.value && nextNotebooks.some(notebook => notebook.id === selectedNotebookId.value)) {
+    return
+  }
+  selectedNotebookId.value = nextNotebooks[0]?.id || ''
+}, { immediate: true })
+
+onMounted(async () => {
+  try {
+    await notebookStore.ensureFresh()
+    notebookMessage.value = ''
+  } catch (e) {
+    notebookMessage.value = e instanceof Error ? e.message : String(e)
+  }
 })
 
 function readAsDataUrl(file: File): Promise<string> {
@@ -59,13 +96,18 @@ async function chooseImage(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
+  if (!selectedNotebookId.value) {
+    status.value = notebookMessage.value || '请先选择错题本'
+    input.value = ''
+    return
+  }
 
   busy.value = true
   status.value = '正在保存本地草稿...'
 
   try {
     const dataUrl = await readAsDataUrl(file)
-    draft.value = await errorApi.createErrorDraft(dataUrl, file.type || 'image/jpeg')
+    draft.value = await errorApi.createErrorDraft(dataUrl, file.type || 'image/jpeg', selectedNotebookId.value)
     status.value = '本地草稿已保存，开始 AI 分析...'
     item.value = await errorApi.analyzeErrorDraft(draft.value.id)
     form.value.questionText = item.value.questionText || ''
@@ -132,11 +174,60 @@ async function save() {
           </div>
         </div>
 
+        <label class="error-select-block">
+          <div class="error-select-head">
+            <span class="error-select-label">保存到错题本</span>
+            <span class="error-select-status" :class="{ 'error-select-status-locked': notebookLocked }">
+              <Lock v-if="notebookLocked" class="h-3.5 w-3.5" />
+              <NotebookPen v-else class="h-3.5 w-3.5" />
+              {{ selectorStatusText }}
+            </span>
+          </div>
+
+          <div
+            class="error-select-shell"
+            :class="{
+              'error-select-shell-disabled': busy || notebookLocked,
+              'error-select-shell-warning': hasNotebookLoadError,
+            }"
+          >
+            <div class="error-select-icon">
+              <NotebookPen class="h-4 w-4" />
+            </div>
+
+            <div class="error-select-copy">
+              <p class="error-select-value">{{ selectedNotebook?.name || (loading ? '正在加载错题本...' : '暂无可用错题本') }}</p>
+              <p class="error-select-caption">
+                {{ selectedNotebook ? 'AI 分析与后续保存会直接归入这个错题本' : '需要先拿到一个可用错题本才能继续上传' }}
+              </p>
+            </div>
+
+            <ChevronDown class="error-select-chevron h-4 w-4" />
+
+            <select
+              v-model="selectedNotebookId"
+              class="error-select"
+              :disabled="busy || notebookLocked"
+            >
+              <option v-if="!notebooks.length" value="" disabled>
+                {{ loading ? '正在加载错题本...' : '暂无可用错题本' }}
+              </option>
+              <option v-for="notebook in notebooks" :key="notebook.id" :value="notebook.id">
+                {{ notebook.name }}
+              </option>
+            </select>
+          </div>
+
+          <p class="error-select-message" :class="{ 'error-select-message-warning': hasNotebookLoadError }">
+            {{ selectorHint }}
+          </p>
+        </label>
+
         <div class="error-stage-actions">
-          <label class="error-primary-button">
+          <label class="error-primary-button" :class="{ 'error-primary-button-disabled': !canChooseImage }">
             <ImagePlus class="h-4 w-4" />
             {{ draft ? '重新选择图片' : '选择题目图片' }}
-            <input class="hidden" type="file" accept="image/*" @change="chooseImage" />
+            <input class="hidden" type="file" accept="image/*" :disabled="!canChooseImage" @change="chooseImage" />
           </label>
           <div class="error-chip-button">
             <Loader v-if="busy" class="h-4 w-4 animate-spin" />
@@ -250,9 +341,9 @@ async function save() {
     </main>
 
     <footer class="error-actions">
-      <label class="error-action error-action-ghost">
+      <label class="error-action error-action-ghost" :class="{ 'error-action-disabled': !canChooseImage }">
         重新选图
-        <input class="hidden" type="file" accept="image/*" @change="chooseImage" />
+        <input class="hidden" type="file" accept="image/*" :disabled="!canChooseImage" @change="chooseImage" />
       </label>
       <button class="error-action error-action-warm" type="button" @click="router.push({ name: 'ErrorNotebook' })">
         稍后再说
@@ -370,6 +461,135 @@ async function save() {
   flex-wrap: wrap;
   gap: 0.75rem;
   margin-top: 1rem;
+}
+
+.error-select-block {
+  display: block;
+  margin-top: 1.1rem;
+}
+
+.error-select-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.error-select-label {
+  color: #5872ad;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.error-select-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.7rem;
+  padding: 0 0.65rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #4a7be0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1px rgba(193, 211, 248, 0.88);
+}
+
+.error-select-status-locked {
+  color: #6f7ea5;
+}
+
+.error-select-shell {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.9rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 4.55rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(186, 206, 246, 0.96);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(246, 250, 255, 0.84) 100%);
+  padding: 0.8rem 0.95rem;
+  box-shadow:
+    0 12px 26px rgba(111, 137, 196, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  overflow: hidden;
+}
+
+.error-select-shell-disabled {
+  background:
+    linear-gradient(180deg, rgba(248, 250, 255, 0.96) 0%, rgba(241, 246, 255, 0.92) 100%);
+}
+
+.error-select-shell-warning {
+  border-color: rgba(236, 176, 151, 0.9);
+}
+
+.error-select-icon {
+  display: grid;
+  width: 2.9rem;
+  height: 2.9rem;
+  place-items: center;
+  border-radius: 0.95rem;
+  background: linear-gradient(180deg, rgba(233, 240, 255, 0.92) 0%, rgba(225, 235, 255, 0.82) 100%);
+  color: #3a6fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.error-select-copy {
+  min-width: 0;
+}
+
+.error-select-value {
+  margin: 0;
+  color: #203468;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.error-select-caption {
+  margin: 0.28rem 0 0;
+  color: #7990be;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.error-select-chevron {
+  color: #5f79b7;
+  flex: none;
+}
+
+.error-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 1.25rem;
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.error-select:disabled {
+  cursor: default;
+}
+
+.error-select-message {
+  margin: 0.55rem 0 0;
+  color: #6d7ea9;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.error-select-message-warning {
+  color: #c06c52;
 }
 
 .error-primary-button,
@@ -605,6 +825,12 @@ async function save() {
 .error-action-primary {
   background: linear-gradient(135deg, #3883ff 0%, #166fff 100%);
   color: white;
+}
+
+.error-primary-button-disabled,
+.error-action-disabled {
+  opacity: 0.56;
+  pointer-events: none;
 }
 
 @media (max-width: 720px) {

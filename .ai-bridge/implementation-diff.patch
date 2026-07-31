@@ -1,0 +1,1882 @@
+diff --git a/.ai-bridge/agent-status.md b/.ai-bridge/agent-status.md
+index c5290b1..59782a4 100644
+--- a/.ai-bridge/agent-status.md
++++ b/.ai-bridge/agent-status.md
+@@ -2,7 +2,7 @@
+ 
+ ## Task
+ 
+-归档 PRD 并允许本地 ready 错题先复习
++错题复习页面 UI 美化改造
+ 
+ ## Status
+ 
+@@ -12,34 +12,30 @@ completed
+ 
+ - `.ai-bridge/codex-report.md`
+ - `.ai-bridge/agent-status.md`
+-- `.ai-bridge/codex-status.md`
+ - `.ai-bridge/execution-log.jsonl`
+ - `.ai-bridge/implementation-diff.patch`
+-- `.ai-bridge/session-log.jsonl`
+-- `ERROR_SYNC_PROTOCOL.md`
+-- `docs/archive/PRD_vocab_v0.2.md`
+-- `src-tauri/src/db/error_repo.rs`
++- `src/pages/ErrorReviewPage.vue`
+ 
+ ## Checks run
+ 
+-- `git show HEAD:PRD.md`
+-- `git diff -- src-tauri/src/db/error_repo.rs ERROR_SYNC_PROTOCOL.md docs/archive/PRD_vocab_v0.2.md`
+-- `cargo test`
+-- `git status --short`
++- `npm run build`
++- `npx vite --host 127.0.0.1 --port 4173`
++- 本地 in-app browser 截图检查
+ 
+ ## Results
+ 
+-- 已将旧 `PRD.md` 完整归档到 `docs/archive/PRD_vocab_v0.2.md`。
+-- 已允许本地 `ready` 且到期、但 `remote_id` 为空的错题进入复习队列。
+-- 已让错题本 `due_count` 与复习队列的 ready / deleted 判断保持一致。
+-- 已让无 `remote_id` 的本地复习继续只保留 `create` op，同时刷新其 payload 以带上最新 SM-2 字段。
+-- `cargo test` 通过，39 个测试全部通过。
++- 已重构 `ErrorReviewPage.vue` 的整体结构和样式，使其更贴近设计稿和错题本现有视觉语言。
++- 已将“展开答案”按钮提升到题目 hero card 内，并把评分区改成底部固定浮层。
++- 已根据补充截图继续压缩未展开态桌面布局，缩小版心、增大题图相对占比、减少 CTA 横向拉伸和装饰占位。
++- 已补充错因/笔记空状态，并保留现有图片 fallback、RichText、评分 API、完成态逻辑。
++- `npm run build` 通过。
++- 纯 Vite 预览环境无法拿到 Tauri 真实错题数据，因此浏览器侧只能确认静态壳层和完成态顶部，不适合完整验证真实复习流。
+ 
+ ## Blockers
+ 
+-无
++- 真实错题数据依赖 Tauri 环境；当前纯浏览器预览无法完整跑到带题目数据的复习态。
+ 
+ ## Review notes
+ 
+-- 建议重点 Review：是否接受“pending op / conflict 不再阻断本地复习”的实现口径。
+-- 如果后续服务端联调需要更强约束，可再单独补一轮 create 后 review 合并策略说明。
++- 建议 ChatGPT review 重点看：视觉层次、底部评分区是否符合设计稿，以及是否需要单独补一个 preview/mock 模式方便前端迭代。
++- 当前这轮只动了 UI，没有碰复习业务逻辑。
+diff --git a/.ai-bridge/codex-report.md b/.ai-bridge/codex-report.md
+index e3a80e4..c3d31ca 100644
+--- a/.ai-bridge/codex-report.md
++++ b/.ai-bridge/codex-report.md
+@@ -4,84 +4,97 @@
+ 
+ ## 1. 任务标题
+ 
+-归档 PRD 并允许本地 ready 错题先复习
++错题复习页面 UI 美化改造
+ 
+ ## 2. 执行摘要
+ 
+-- 已将旧 `PRD.md` 的内容完整归档到 `docs/archive/PRD_vocab_v0.2.md`。
+-- 已修改错题 repo 逻辑：本地 `analysis_status = 'ready'` 且到期的错题，即使 `remote_id` 为空，也可以进入复习队列。
+-- 已同步更新错题本 `due_count` 统计口径，使其与复习队列保持一致。
+-- 已补充 Rust repo 层测试，覆盖本地 ready 未同步可复习、非 ready / deleted 不可复习、本地复习更新 SM-2 与 review log、且不新增错误 review op。
+-- 已更新 `ERROR_SYNC_PROTOCOL.md`，将该策略从待确认改为已确认实现。
+-- 已运行 `cargo test`，39 个测试全部通过。
++- 已按当前设计稿方向重构 `src/pages/ErrorReviewPage.vue` 的视觉层，统一到错题列表页已有的白底、浅蓝渐变、圆角描边、柔和阴影语言。
++- 已把 header 改为返回按钮 + 标题/副标题 + 进度胶囊，并补上数字进度条视觉。
++- 已把题目区改造成 hero card：保留图片 fallback、题干、知识点、展开答案逻辑，同时加入 `今日待复习`、`Lv.` pill 和 CSS 几何装饰。
++- 已把答案区域改造成分段 tabs 大卡片，补充 `错因与笔记` 的空状态，并把评分区改成底部固定浮层。
++- 已根据补充截图继续收紧“未展开答案”态的桌面版心，缩短 hero 卡横向拉伸、提高题卡密度，并把展开按钮控制在更像移动学习卡的尺寸。
++- 已完成 `npm run build` 验证。
++- 本轮没有改复习算法、同步协议、Tauri command、数据库或 API 调用。
+ 
+ ## 3. 修改文件
+ 
+ ```txt
+-.ai-bridge/agent-status.md
+ .ai-bridge/codex-report.md
+-.ai-bridge/codex-status.md
++.ai-bridge/agent-status.md
+ .ai-bridge/execution-log.jsonl
+ .ai-bridge/implementation-diff.patch
+-.ai-bridge/session-log.jsonl
+-ERROR_SYNC_PROTOCOL.md
+-docs/archive/PRD_vocab_v0.2.md
+-src-tauri/src/db/error_repo.rs
++src/pages/ErrorReviewPage.vue
+ ```
+ 
+ ## 4. 核心实现说明
+ 
+-本次实现分为两部分。
+-
+-PRD 归档：
+-
+-- 按已确认决策，将旧 `PRD.md` 的历史内容归档到 `docs/archive/PRD_vocab_v0.2.md`。
+-- 当前工作区仍保留 `PRD.md` 的删除状态，但旧内容已不再丢失。
+-
+-错题复习逻辑：
+-
+-- `src-tauri/src/db/error_repo.rs` 的 `get_due_error_items` 已移除 `remote_id IS NOT NULL` 限制。
+-- 同时移除了基于 `error_sync_ops` / `error_sync_conflicts` 的复习队列阻断，让同步状态不再挡住本地学习。
+-- 错题本 `due_count` 统计同步移除 `remote_id IS NOT NULL` 限制，只按 `ready`、`deleted_at`、`next_review` 判断。
+-- `rate_error_item` 在无 `remote_id` 时仍不创建独立 `review` op，但会刷新现有 pending `create` op 的 payload，让后续首次同步携带最新的 SM-2 结果。
+-
+-新增测试覆盖：
+-
+-- 本地 ready 且 `remote_id IS NULL` 会出现在 `get_due_error_items`，并计入 `due_count`。
+-- `pending_analysis` / `analyzing` / `analyze_failed` / `deleted` 不会进入复习队列。
+-- 无 `remote_id` 的 ready 错题复习后会更新本地复习字段、写入 `error_review_logs`、并保持只有 `create` op。
++本次只改 UI 呈现层，主要集中在 `src/pages/ErrorReviewPage.vue`。
++
++我保留了这些既有行为：
++
++- `onMounted` 仍调用 `errorApi.getDueErrorItems()`。
++- 没有待复习错题时仍进入完成态。
++- 评分仍使用 `rate(0)`、`rate(3)`、`rate(5)`。
++- `errorApi.rateErrorItem(current.value.id, quality, seconds)` 调用未改。
++- 图片仍优先走 `localImagePath`，失败后 fallback 到 `remoteImageUrl`。
++- `RichText` 仍继续负责题干、答案、解析、错因、笔记渲染。
++
++UI 层改造点：
++
++1. Header
++   - 旧的顶部区域只有标题和简单副文案。
++   - 现在改为更接近设计稿的三段式结构：
++     - 左侧返回按钮
++     - 中部标题和学习导语
++     - 右侧进度胶囊与进度条
++2. Hero Card
++   - 题目主卡改成更明显的学习卡片。
++   - 使用浅蓝径向渐变、细边框、柔和阴影。
++   - 保留图片、题干、知识点标签。
++   - 把“展开答案”主按钮移入 hero card，符合设计稿层级。
++   - 右侧用纯 CSS 方块装饰模拟几何学习感，没有引入新资源。
++3. 答案与解析区
++   - 把原来的 tabs 和内容区整体卡片化。
++   - 当前 tab 改成 segmented control 风格。
++   - `答案与解析` 用更清晰的 section head 和分隔线。
++   - `错因与笔记` 在无内容时增加优雅空状态：
++     `这道题还没有记录错因，复习后可以补充。`
++4. 底部评分浮层
++   - 只在 `revealed` 后显示。
++   - 改成固定底部浮层，带半透明白底和 blur。
++   - 三个评分按钮改成等宽柔和红/橙/绿卡片，文案更贴近设计稿。
++5. 响应式
++   - 增加了移动端 header、hero、tabs、底部评分区的专门收敛样式。
++   - 给 main 区增加了评分浮层预留空间，避免内容被遮挡。
+ 
+ ## 5. 测试与验证
+ 
+-请填写实际运行过的命令和结果。
+-
+ ```txt
+-命令：git show HEAD:PRD.md
+-结果：取回旧 `PRD.md` 的完整内容，用于归档。
+-
+-命令：git diff -- src-tauri/src/db/error_repo.rs ERROR_SYNC_PROTOCOL.md docs/archive/PRD_vocab_v0.2.md
+-结果：复核本次实现的代码、协议文档和归档文件改动。
++命令：npm run build
++结果：通过。
+ 
+-命令：cargo test
+-结果：通过。`src-tauri` 下共 39 个测试通过，0 失败。
++命令：本地 Vite 预览 + in-app browser 截图检查
++结果：已确认页面外层背景、header、完成态顶部壳层可以正常渲染。
++说明：纯 Vite 预览环境拿不到 Tauri 真实错题数据，因此无法在浏览器里完整验证“有待复习错题时”的真实内容卡和评分流；这部分主要依赖代码审查和构建通过来确认。
+ 
+-命令：git status --short
+-结果：确认当前工作区包含本次修改的 `src-tauri/src/db/error_repo.rs`、`docs/archive/PRD_vocab_v0.2.md`、`.ai-bridge/*`，以及原有的 `PRD.md` 删除状态。
++命令：根据补充截图继续调整后再次执行 `npm run build`
++结果：通过。说明这轮桌面未展开态收口没有破坏现有页面构建。
+ ```
+ 
+ ## 6. 未解决问题
+ 
+-无
++- 如果后续希望在纯 Web 预览里更方便地审错题复习页 UI，最好单独补一个 preview/mock 入口。
++- 本轮没有增加这种 preview 逻辑，因为当前计划明确要求只修 UI，不改业务行为。
+ 
+ ## 7. 需要 ChatGPT / 用户确认的问题
+ 
+-建议 ChatGPT Review 重点看两处：
++需要 ChatGPT review 的重点：
+ 
+-- 是否接受“同步冲突和 pending op 不再阻断本地复习”的当前实现口径。这符合 Learning First，但比原计划多走了一步。
+-- 是否需要后续在协议或服务端联调计划里明确：本地先复习、后首次 create 同步时，服务端应如何看待 create payload 中已被更新过的 SM-2 字段。
++- 是否接受当前 header、hero、tabs、底部评分区的视觉方向，作为错题复习页与错题本同一家族的正式样式。
++- 是否希望下一轮继续补一个“错题复习页 preview/mock 模式”，方便脱离 Tauri 真数据做纯前端 UI 调整。
+ 
+ ## 8. 文档是否需要同步更新
+ 
+ 否
+ 
+-本次计划要求的协议文档更新已完成，暂不需要额外同步其他长期文档。
++当前计划范围内不需要额外同步长期文档。
+diff --git a/.ai-bridge/execution-log.jsonl b/.ai-bridge/execution-log.jsonl
+index fe0b6ed..8b469d1 100644
+--- a/.ai-bridge/execution-log.jsonl
++++ b/.ai-bridge/execution-log.jsonl
+@@ -2,3 +2,38 @@
+ {"ts":"2026-06-28T03:07:59Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"Recall 三方协作启动准备","summary":"Read collaboration docs, checked worktree status, documented current conflicts, and updated report/status files without changing business code."}
+ {"ts":"2026-06-28T03:13:45.930Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"归档 PRD 并允许本地 ready 错题先复习","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
+ {"ts":"2026-06-28T03:21:04Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"归档 PRD 并允许本地 ready 错题先复习","summary":"Archived PRD, enabled local ready unsynced error items to enter review, refreshed pending create payload on local review, updated protocol docs, and passed cargo test."}
++{"ts":"2026-06-28T07:30:36.950Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"核对 wrong-notebook 服务端同步协议","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T07:36:55Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"核对 wrong-notebook 服务端同步协议","summary":"Verified wrong-notebook mobile auth/analyze/push/pull routes against the client protocol, confirmed create accepts SM-2 fields and pull returns full notebooks, and found the existing mobile-sync-push integration test is stale and failing against the current ops-based contract."}
++{"ts":"2026-06-28T07:30:36.947Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"核对 wrong-notebook 服务端同步协议","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T07:45:38.565Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"修复服务端 mobile sync 测试","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T07:52:39Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"修复服务端 mobile sync 测试","summary":"Replaced the stale wrong-notebook mobile sync push test with ops-based coverage for create/update/review/delete/conflict flows, locked SM-2 field persistence and server response fields, and passed the targeted Vitest file."}
++{"ts":"2026-06-28T07:58:02.664Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"建立 ai-bridge 自动化协作方案 B","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T08:04:08.842Z","event":"runner_skip","status":"idle","message":"Task not ready for Codex.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:04:26.293Z","event":"runner_dry_run","status":"ready_for_codex","message":"Dry run; Codex command not executed.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:04:27Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"建立 ai-bridge 自动化协作方案 B","summary":"Added ai-bridge task-state automation, implemented runner/watch scripts with safe defaults and Codex CLI integration, updated README and npm entrypoints, and verified with bash -n plus a dry run."}
++{"ts":"2026-06-28T08:10:44.619Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"ai-bridge v0.2 安全加固","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T08:22:16.675Z","event":"runner_skip","status":"idle","message":"Task not ready for Codex.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:22:38.267Z","event":"runner_dry_run","status":"ready_for_codex","message":"Dry run; Codex command not executed.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:22:38.290Z","event":"runner_skip","status":"idle","message":"Task not ready for Codex.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:22:59.610Z","event":"runner_skip","status":"ready_for_codex","message":"Runner lock already exists.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:22:59.697Z","event":"runner_failed","status":"failed","message":"No Codex command configured.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:23:25.825Z","event":"runner_started","status":"running","message":"Starting Codex runner.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:23:26.598Z","event":"runner_failed","status":"failed","message":"Report fingerprint did not change after Codex run.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:23:45.933Z","event":"runner_failed","status":"failed","message":"No Codex command configured.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:24:30Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"ai-bridge v0.2 安全加固","summary":"Hardened ai-bridge runner/watch safety defaults, added report fingerprint validation, changed missing-command handling to failed, required explicit default Codex enablement, updated README collaboration guidance, and verified syntax plus dry-run/no-command/stale-report scenarios."}
++{"ts":"2026-06-28T08:39:34.440Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"ai-bridge v0.3 状态管理与 review 辅助脚本","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T08:45:39.255Z","event":"runner_failed","status":"failed","message":"No Codex command configured.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:45:48.611Z","event":"state_reset","status":"idle","message":"State reset to idle.","source":"ai-bridge-state","taskId":"ai-bridge-v0.3-state-review-helper","force":true}
++{"ts":"2026-06-28T08:45:48.641Z","event":"state_ready","status":"ready_for_codex","message":"Marked task ready for Codex.","source":"ai-bridge-state","taskId":"test-state-flow","force":false}
++{"ts":"2026-06-28T08:45:48.659Z","event":"state_failed","status":"failed","message":"manual simulation","source":"ai-bridge-state","taskId":"test-state-flow"}
++{"ts":"2026-06-28T08:45:48.666Z","event":"state_reset","status":"idle","message":"State reset to idle.","source":"ai-bridge-state","taskId":"test-state-flow","force":false}
++{"ts":"2026-06-28T08:46:03.065Z","event":"state_ready","status":"ready_for_codex","message":"Marked task ready for Codex.","source":"ai-bridge-state","taskId":"test-state-flow","force":false}
++{"ts":"2026-06-28T08:46:13.559Z","event":"state_failed","status":"failed","message":"manual simulation","source":"ai-bridge-state","taskId":"test-state-flow"}
++{"ts":"2026-06-28T08:46:19.296Z","event":"state_reset","status":"idle","message":"State reset to idle.","source":"ai-bridge-state","taskId":"test-state-flow","force":false}
++{"ts":"2026-06-28T08:46:29.697Z","event":"runner_skip","status":"idle","message":"Task not ready for Codex.","source":"ai-bridge-runner"}
++{"ts":"2026-06-28T08:46:33.994Z","event":"state_ready","status":"ready_for_codex","message":"Marked task ready for Codex.","source":"ai-bridge-state","taskId":"ai-bridge-v0.3-state-review-helper","force":false}
++{"ts":"2026-06-28T08:46:34.389Z","event":"state_reset","status":"idle","message":"State reset to idle.","source":"ai-bridge-state","taskId":"ai-bridge-v0.3-state-review-helper","force":true}
++{"ts":"2026-06-28T08:46:35Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"ai-bridge v0.3 状态管理与 review 辅助脚本","summary":"Added the ai-bridge state management CLI with status/ready/review-done/fail/reset/doctor commands, unified lastReportFingerprint to null-or-object, updated README and package scripts, verified state transitions plus build, and restored task-state to a safe idle status after simulation."}
++{"ts":"2026-06-28T09:03:20.118Z","event":"handoff_to_agent","agent":"codex","agent_name":"Codex","title":"错题复习页面 UI 美化改造","plan_path":".ai-bridge/current-plan.md","status_path":".ai-bridge/agent-status.md","diff_path":".ai-bridge/implementation-diff.patch"}
++{"ts":"2026-06-28T09:18:20Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"错题复习页面 UI 美化改造","summary":"Redesigned ErrorReviewPage to match the app's refined blue-and-white study aesthetic, rebuilt the header/hero/answer tabs/rating footer while preserving all review logic and image fallbacks, passed npm run build, and verified the static shell in a local browser preview."}
++{"ts":"2026-06-28T13:59:00Z","event":"task_completed","agent":"codex","agent_name":"Codex","title":"错题复习页面 UI 美化改造（补图收口）","summary":"Refined the unrevealed desktop review card after the follow-up screenshot by tightening the content width, increasing visual density, reducing hero ornament sprawl, and keeping the expand-answer CTA closer to the approved mobile-card feel; build still passes."}
+diff --git a/src/pages/ErrorReviewPage.vue b/src/pages/ErrorReviewPage.vue
+index 2cea907..5cfd11b 100644
+--- a/src/pages/ErrorReviewPage.vue
++++ b/src/pages/ErrorReviewPage.vue
+@@ -7,13 +7,9 @@ import {
+   Brain,
+   CheckCircle,
+   ChevronDown,
+-  ChevronUp,
+   Clock3,
+-  Ellipsis,
+   Lightbulb,
+   NotebookPen,
+-  RotateCcw,
+-  Sparkles,
+   Target,
+ } from 'lucide-vue-next'
+ import * as errorApi from '../api/errorItem'
+@@ -38,8 +34,19 @@ const imageSrc = computed(() => {
+   }
+   return current.value?.remoteImageUrl || ''
+ })
+-const progressLabel = computed(() => done.value ? '完成' : `${index.value + 1} / ${items.value.length}`)
+ const knowledgePoints = computed(() => current.value ? errorApi.parseKnowledgePoints(current.value.knowledgePoints) : [])
++const progressCurrent = computed(() => {
++  if (items.value.length === 0) return 0
++  return done.value ? items.value.length : Math.min(index.value + 1, items.value.length)
++})
++const progressTotal = computed(() => items.value.length)
++const progressPercent = computed(() => {
++  if (items.value.length === 0) return 100
++  return Math.max(8, Math.round((progressCurrent.value / items.value.length) * 100))
++})
++const hasMistakeContent = computed(() => Boolean(
++  current.value?.wrongAnswerText || current.value?.mistakeAnalysis || current.value?.userNotes,
++))
+ 
+ onMounted(async () => {
+   items.value = await errorApi.getDueErrorItems()
+@@ -87,7 +94,7 @@ function updateKnowledgeOverflow() {
+     return
+   }
+ 
+-  const chips = Array.from(el.querySelectorAll<HTMLElement>('.error-chip'))
++  const chips = Array.from(el.querySelectorAll<HTMLElement>('.review-chip'))
+   if (chips.length <= 1) {
+     knowledgeOverflowing.value = false
+     return
+@@ -101,160 +108,232 @@ function updateKnowledgeOverflow() {
+ 
+ <template>
+   <div class="app-page review-page min-h-screen">
+-    <header class="error-header header-safe-top">
+-      <button class="error-header-button" type="button" @click="router.push({ name: 'ErrorNotebook' })">
++    <header class="review-topbar header-safe-top">
++      <button class="review-nav-button" type="button" aria-label="返回错题本" @click="router.push({ name: 'ErrorNotebook' })">
+         <ArrowLeft class="h-6 w-6" />
+       </button>
+-      <div class="text-center">
+-        <h1 class="error-header-title">错题复习</h1>
+-        <p class="error-header-subtitle">{{ progressLabel }}</p>
++      <div class="review-title-block">
++        <h1 class="review-title">错题复习</h1>
++        <p class="review-subtitle">把错因重新学会，推进到长期记忆</p>
++      </div>
++      <div class="review-progress-pill" :class="{ 'review-progress-pill-complete': done }" aria-label="复习进度">
++        <template v-if="progressTotal > 0">
++          <div class="review-progress-numbers">
++            <strong>{{ progressCurrent }}</strong>
++            <span>/ {{ progressTotal }}</span>
++          </div>
++          <div class="review-progress-track">
++            <span class="review-progress-fill" :style="{ width: `${progressPercent}%` }" />
++          </div>
++        </template>
++        <template v-else>
++          <div class="review-progress-numbers">
++            <strong>完成</strong>
++          </div>
++          <div class="review-progress-track">
++            <span class="review-progress-fill" style="width: 100%" />
++          </div>
++        </template>
+       </div>
+-      <button class="error-header-button" type="button" aria-label="more">
+-        <Ellipsis class="h-6 w-6" />
+-      </button>
+     </header>
+ 
+-    <main class="error-main">
+-      <section v-if="done" class="error-hero-card error-done-card">
+-        <CheckCircle class="mb-4 h-14 w-14 text-[#2f7cff]" />
+-        <h2 class="error-done-title">本轮错题复习完成</h2>
+-        <p class="error-done-text">这次一共完成 {{ items.length }} 道题。回到错题本继续整理一两道，记忆会更稳。</p>
+-        <button class="error-primary-button mt-5" type="button" @click="router.push({ name: 'ErrorNotebook' })">返回错题本</button>
++    <main class="review-shell" :class="{ 'review-shell-with-rating': revealed && !done && current }">
++      <section v-if="done" class="review-done-card">
++        <div class="review-done-icon">
++          <CheckCircle class="h-14 w-14 text-[#2f7cff]" />
++        </div>
++        <h2 class="review-done-title">本轮错题复习完成</h2>
++        <p class="review-done-text">这次一共完成 {{ items.length }} 道题。回到错题本继续整理一两道，记忆会更稳。</p>
++        <button class="review-primary-button mt-5" type="button" @click="router.push({ name: 'ErrorNotebook' })">返回错题本</button>
+       </section>
+ 
+       <template v-else-if="current">
+-        <section class="error-hero-card">
+-          <div class="error-hero-top">
+-            <img v-if="imageSrc" :src="imageSrc" class="error-thumb" @error="handleImageError" />
++        <section class="review-hero-card">
++          <div class="review-hero-glow" aria-hidden="true" />
++          <div class="review-hero-grid" :class="{ 'review-hero-grid-no-image': !imageSrc }">
++            <div v-if="imageSrc" class="review-hero-media">
++              <img :src="imageSrc" class="review-thumb" @error="handleImageError" />
++            </div>
+ 
+-            <div class="error-hero-content">
+-              <div class="error-mini-stats">
+-                <div class="error-mini-pill">
++            <div class="review-hero-content">
++              <div class="review-hero-pills">
++                <div class="review-mini-pill">
+                   <Clock3 class="h-4 w-4" />
+-                  {{ current.nextReview }}
++                  今日待复习
+                 </div>
+-                <div class="error-mini-pill">
++                <div class="review-mini-pill review-mini-pill-level">
+                   <Target class="h-4 w-4" />
+                   Lv. {{ current.masteryLevel }}
+                 </div>
+               </div>
+ 
+               <RichText
+-                class="error-question-text"
++                class="review-question-text"
+                 :text="current.questionText"
+                 fallback="这道题还没有题干，先根据图片回忆核心条件。"
+               />
+ 
+-              <div v-if="knowledgePoints.length" class="error-question-tags-row">
++              <div v-if="knowledgePoints.length" class="review-question-tags-row">
+                 <div
+                   ref="knowledgeTagsRef"
+-                  class="error-question-tags"
+-                  :class="{ 'error-question-tags-collapsed': !knowledgeExpanded }"
++                  class="review-question-tags"
++                  :class="{ 'review-question-tags-collapsed': !knowledgeExpanded }"
+                 >
+-                  <span v-for="point in knowledgePoints" :key="point" class="error-chip">
++                  <span v-for="point in knowledgePoints" :key="point" class="review-chip">
+                     {{ point }}
+                   </span>
+                 </div>
+                 <button
+                   v-if="knowledgeOverflowing"
+-                  class="error-inline-expand"
++                  class="review-inline-expand"
+                   type="button"
+                   @click="knowledgeExpanded = !knowledgeExpanded"
+                 >
+-                  <ChevronDown v-if="!knowledgeExpanded" class="h-4.5 w-4.5" />
+-                  <ChevronUp v-else class="h-4.5 w-4.5" />
++                  <span>{{ knowledgeExpanded ? '收起' : '更多' }}</span>
++                  <ChevronDown class="h-4 w-4" :class="{ 'review-inline-expand-open': knowledgeExpanded }" />
+                 </button>
+               </div>
++
++              <button v-if="!revealed" class="review-expand-answer" type="button" @click="revealed = true">
++                <span>展开答案</span>
++                <ChevronDown class="h-5 w-5" />
++              </button>
++            </div>
++
++            <div class="review-hero-ornament" aria-hidden="true">
++              <span class="review-cube review-cube-a" />
++              <span class="review-cube review-cube-b" />
++              <span class="review-cube review-cube-c" />
++              <span class="review-cube review-cube-d" />
++              <span class="review-cube review-cube-e" />
+             </div>
+           </div>
+         </section>
+ 
+-        <section v-if="revealed" class="error-tabs-panel">
+-          <div class="error-tabs">
+-            <button class="error-tab" :class="{ 'error-tab-active': activeTab === 'answer' }" type="button" @click="activeTab = 'answer'">
++        <section v-if="revealed" class="review-answer-card">
++          <div class="review-tabs">
++            <button class="review-tab" :class="{ 'review-tab-active': activeTab === 'answer' }" type="button" @click="activeTab = 'answer'">
+               答案与解析
+             </button>
+-            <button class="error-tab" :class="{ 'error-tab-active': activeTab === 'mistake' }" type="button" @click="activeTab = 'mistake'">
++            <button class="review-tab" :class="{ 'review-tab-active': activeTab === 'mistake' }" type="button" @click="activeTab = 'mistake'">
+               错因与笔记
+             </button>
+           </div>
+ 
+-          <div class="error-tab-content">
+-            <article class="error-content-card">
++          <div class="review-tab-panel">
++            <article class="review-content-card">
+               <template v-if="activeTab === 'answer'">
+-                <section class="error-content-section">
+-                  <div class="error-card-head">
+-                    <Sparkles class="h-5 w-5 text-[#2f7cff]" />
++                <section class="review-content-section">
++                  <div class="review-card-head">
++                    <CheckCircle class="h-5 w-5 text-[#2f7cff]" />
+                     <h2>标准答案</h2>
+                   </div>
+-                  <RichText class="error-content-text" :text="current.answerText" fallback="暂无答案" />
++                  <RichText class="review-content-text" :text="current.answerText" fallback="暂无答案" />
+                 </section>
+ 
+-                <section class="error-content-section error-content-section-divider">
+-                  <div class="error-card-head">
++                <section class="review-content-section review-content-section-divider">
++                  <div class="review-card-head">
+                     <Lightbulb class="h-5 w-5 text-[#2f7cff]" />
+                     <h2>解析</h2>
+                   </div>
+-                  <RichText class="error-content-text" :text="current.analysis" fallback="暂无解析" />
++                  <RichText class="review-content-text" :text="current.analysis" fallback="暂无解析" />
+                 </section>
+               </template>
+ 
+               <template v-else>
+-                <section v-if="current.wrongAnswerText" class="error-content-section">
+-                  <div class="error-card-head">
++                <template v-if="hasMistakeContent">
++                  <section v-if="current.wrongAnswerText" class="review-content-section">
++                    <div class="review-card-head">
++                      <Brain class="h-5 w-5 text-[#ff786d]" />
++                      <h2>错答记录</h2>
++                    </div>
++                    <RichText class="review-content-text" :text="current.wrongAnswerText" />
++                  </section>
++
++                  <section
++                    v-if="current.mistakeAnalysis"
++                    class="review-content-section"
++                    :class="{ 'review-content-section-divider': current.wrongAnswerText }"
++                  >
++                    <div class="review-card-head">
++                      <Brain class="h-5 w-5 text-[#ff786d]" />
++                      <h2>错因分析</h2>
++                    </div>
++                    <RichText class="review-content-text" :text="current.mistakeAnalysis" />
++                  </section>
++
++                  <section
++                    v-if="current.userNotes"
++                    class="review-content-section"
++                    :class="{ 'review-content-section-divider': current.wrongAnswerText || current.mistakeAnalysis }"
++                  >
++                    <div class="review-card-head">
++                      <NotebookPen class="h-5 w-5 text-[#2f7cff]" />
++                      <h2>笔记</h2>
++                    </div>
++                    <RichText class="review-content-text" :text="current.userNotes" />
++                  </section>
++                </template>
++
++                <section v-else class="review-empty-state">
++                  <div class="review-card-head">
+                     <Brain class="h-5 w-5 text-[#ff786d]" />
+-                    <h2>错答记录</h2>
++                    <h2>错因与笔记</h2>
+                   </div>
+-                  <RichText class="error-content-text" :text="current.wrongAnswerText" />
+-                </section>
+-
+-                <section v-if="current.mistakeAnalysis" class="error-content-section" :class="{ 'error-content-section-divider': current.wrongAnswerText }">
+-                  <div class="error-card-head">
+-                    <Brain class="h-5 w-5 text-[#ff786d]" />
+-                    <h2>错因分析</h2>
+-                  </div>
+-                  <RichText class="error-content-text" :text="current.mistakeAnalysis" />
+-                </section>
+-
+-                <section v-if="current.userNotes" class="error-content-section" :class="{ 'error-content-section-divider': current.wrongAnswerText || current.mistakeAnalysis }">
+-                  <div class="error-card-head">
+-                    <NotebookPen class="h-5 w-5 text-[#2f7cff]" />
+-                    <h2>笔记</h2>
+-                  </div>
+-                  <RichText class="error-content-text" :text="current.userNotes" />
++                  <p>这道题还没有记录错因，复习后可以补充。</p>
+                 </section>
+               </template>
+             </article>
+           </div>
+         </section>
+-      </template>
+-    </main>
+ 
+-    <footer v-if="!done && current" class="error-actions" :class="{ 'error-actions-rating': revealed }">
+-      <template v-if="!revealed">
+-        <button class="error-action error-action-ghost" type="button" @click="router.push({ name: 'ErrorNotebook' })">
+-          返回错题本
+-        </button>
+-        <button class="error-action error-action-primary error-action-wide" type="button" @click="revealed = true">
+-          <RotateCcw class="h-5 w-5" />
+-          我想好了，展开答案
++        <button v-if="revealed" class="review-note-preview" type="button" @click="activeTab = 'mistake'">
++          <span class="review-note-icon">
++            <Lightbulb class="h-5 w-5" />
++          </span>
++          <span class="review-note-copy">
++            <strong>错因与笔记（预览）</strong>
++            <span v-if="hasMistakeContent">查看错答、错因分析和复习笔记</span>
++            <span v-else>复习后可补充：这题为什么错、下次怎么判断</span>
++          </span>
++          <ChevronDown class="h-5 w-5 rotate-[-90deg]" />
+         </button>
+       </template>
++    </main>
+ 
+-      <template v-else>
+-        <button class="error-score error-score-red" type="button" @click="rate(0)">
+-          <span class="error-score-title">忘了</span>
+-          <span class="error-score-hint">基本没想起来</span>
++    <footer v-if="revealed && !done && current" class="review-rating-bar">
++      <div class="review-rating-shell">
++        <button class="review-score review-score-red" type="button" @click="rate(0)">
++          <span class="review-face review-face-sad" aria-hidden="true">
++            <span class="review-face-eyes">··</span>
++            <span class="review-face-mouth" />
++          </span>
++          <span class="review-score-copy">
++            <span class="review-score-title">忘了</span>
++            <span class="review-score-hint">基本没想起来</span>
++          </span>
+         </button>
+-        <button class="error-score error-score-warm" type="button" @click="rate(3)">
+-          <span class="error-score-title">模糊</span>
+-          <span class="error-score-hint">能做一半，还不稳</span>
++        <button class="review-score review-score-warm" type="button" @click="rate(3)">
++          <span class="review-face review-face-flat" aria-hidden="true">
++            <span class="review-face-eyes">··</span>
++            <span class="review-face-mouth" />
++          </span>
++          <span class="review-score-copy">
++            <span class="review-score-title">模糊</span>
++            <span class="review-score-hint">思路还不稳定</span>
++          </span>
+         </button>
+-        <button class="error-score error-score-green" type="button" @click="rate(5)">
+-          <span class="error-score-title">掌握</span>
+-          <span class="error-score-hint">思路清楚，能独立做</span>
++        <button class="review-score review-score-green" type="button" @click="rate(5)">
++          <span class="review-face review-face-smile" aria-hidden="true">
++            <span class="review-face-eyes">··</span>
++            <span class="review-face-mouth" />
++          </span>
++          <span class="review-score-copy">
++            <span class="review-score-title">掌握</span>
++            <span class="review-score-hint">能独立做出</span>
++          </span>
+         </button>
+-      </template>
++      </div>
+     </footer>
+   </div>
+ </template>
+@@ -262,419 +341,1036 @@ function updateKnowledgeOverflow() {
+ <style scoped>
+ .review-page {
+   background:
+-    radial-gradient(circle at top center, rgba(146, 187, 255, 0.18), transparent 28%),
+-    linear-gradient(180deg, #fbfdff 0%, #f3f7ff 30%, #edf3ff 100%);
++    radial-gradient(circle at 18% 0%, rgba(98, 146, 255, 0.16), transparent 24%),
++    radial-gradient(circle at 86% 8%, rgba(171, 204, 255, 0.2), transparent 22%),
++    linear-gradient(180deg, #fffefe 0%, #f8fbff 34%, #edf4ff 100%);
+ }
+ 
+-.error-header {
++.review-topbar {
+   display: grid;
+-  grid-template-columns: 2.75rem 1fr 2.75rem;
++  grid-template-columns: 3.35rem minmax(0, 1fr) auto;
+   align-items: center;
+-  gap: 0.75rem;
+-  padding: 0.9rem 1.5rem 0;
++  gap: 0.82rem;
++  padding: 0.95rem 1.15rem 0;
+ }
+ 
+-.error-header-title {
+-  margin: 0;
+-  text-align: center;
+-  font-size: 0.92rem;
+-  font-weight: 900;
+-  color: #18274f;
++.review-nav-button {
++  display: grid;
++  width: 3rem;
++  height: 3rem;
++  place-items: center;
++  border: 1px solid rgba(209, 221, 247, 0.94);
++  border-radius: 1.15rem;
++  background: rgba(255, 255, 255, 0.96);
++  color: #1e3f8f;
++  box-shadow:
++    0 14px 30px rgba(78, 113, 188, 0.08),
++    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+ }
+ 
+-.error-header-subtitle {
+-  margin: 0.2rem 0 0;
++.review-title-block {
++  min-width: 0;
+   text-align: center;
+-  font-size: 0.76rem;
+-  color: #8ea0c6;
+ }
+ 
+-.error-header-button {
+-  display: grid;
+-  width: 2.75rem;
+-  height: 2.75rem;
+-  place-items: center;
+-  border: 0;
++.review-title {
++  margin: 0;
++  color: #132863;
++  font-size: 1.36rem;
++  line-height: 1.1;
++  font-weight: 950;
++  letter-spacing: 0.02em;
++}
++
++.review-subtitle {
++  margin: 0.34rem auto 0;
++  max-width: 16rem;
++  color: #6c82af;
++  font-size: 0.84rem;
++  line-height: 1.42;
++  font-weight: 650;
++}
++
++.review-progress-pill {
++  min-width: 6.15rem;
++  padding: 0.7rem 0.9rem 0.62rem;
++  border: 1px solid rgba(212, 224, 248, 0.94);
++  border-radius: 1.45rem;
++  background: rgba(255, 255, 255, 0.96);
++  box-shadow:
++    0 16px 30px rgba(80, 110, 176, 0.08),
++    inset 0 1px 0 rgba(255, 255, 255, 0.98);
++}
++
++.review-progress-pill-complete {
++  min-width: 5.7rem;
++}
++
++.review-progress-numbers {
++  display: flex;
++  align-items: baseline;
++  justify-content: center;
++  gap: 0.25rem;
++  color: #6f82aa;
++  font-weight: 700;
++}
++
++.review-progress-numbers strong {
++  color: #1f66ff;
++  font-size: 1.58rem;
++  line-height: 1;
++  font-weight: 950;
++}
++
++.review-progress-numbers span {
++  font-size: 0.92rem;
++}
++
++.review-progress-track {
++  margin-top: 0.48rem;
++  height: 0.34rem;
+   border-radius: 999px;
+-  background: transparent;
+-  color: #23345f;
++  background: rgba(221, 229, 243, 0.86);
++  overflow: hidden;
+ }
+ 
+-.error-main {
+-  padding: 1.15rem 1.5rem 8.6rem;
++.review-progress-fill {
++  display: block;
++  height: 100%;
++  border-radius: inherit;
++  background: linear-gradient(90deg, #1f66ff 0%, #4d8dff 100%);
+ }
+ 
+-.error-hero-card,
+-.error-tabs-panel {
++.review-shell {
++  padding: 1.1rem 1rem 2rem;
++}
++
++.review-shell-with-rating {
++  padding-bottom: calc(9.75rem + var(--safe-area-bottom));
++}
++
++.review-hero-card,
++.review-answer-card,
++.review-done-card {
++  position: relative;
+   overflow: hidden;
+-  border: 1px solid rgba(214, 227, 255, 0.95);
++  border: 1px solid rgba(197, 216, 248, 0.96);
+   border-radius: 2rem;
+   background:
+-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.48), transparent 30%),
+-    linear-gradient(180deg, #eef5ff 0%, #eaf2ff 100%);
++    radial-gradient(circle at 82% 18%, rgba(47, 124, 255, 0.12), transparent 30%),
++    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(238, 245, 255, 0.96));
+   box-shadow:
+     0 20px 44px rgba(93, 123, 194, 0.08),
+-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
++    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+ }
+ 
+-.error-hero-card {
+-  padding: 1.35rem;
++.review-hero-card {
++  padding: 1.35rem 1.25rem;
+ }
+ 
+-.error-hero-top {
++.review-hero-glow {
++  position: absolute;
++  inset: auto auto -4rem -3rem;
++  width: 11rem;
++  height: 11rem;
++  border-radius: 999px;
++  background: radial-gradient(circle, rgba(103, 153, 255, 0.12), transparent 70%);
++  pointer-events: none;
++}
++
++.review-hero-grid {
++  position: relative;
++  z-index: 1;
+   display: grid;
+-  grid-template-columns: 9.4rem minmax(0, 1fr);
++  grid-template-columns: 9rem minmax(0, 1fr);
+   gap: 1.15rem;
++  align-items: start;
+ }
+ 
+-.error-thumb {
++.review-hero-grid-no-image {
++  grid-template-columns: minmax(0, 1fr);
++}
++
++.review-hero-media {
++  position: relative;
++  z-index: 2;
++}
++
++.review-thumb {
+   width: 100%;
+-  height: 11.2rem;
++  height: 11.4rem;
+   object-fit: cover;
+-  border-radius: 1.15rem;
+-  border: 3px solid rgba(255, 255, 255, 0.96);
+-  box-shadow: 0 14px 28px rgba(106, 127, 176, 0.12);
++  border-radius: 1.28rem;
++  border: 1px solid rgba(196, 214, 248, 0.96);
++  background: rgba(255, 255, 255, 0.94);
++  box-shadow:
++    0 12px 28px rgba(95, 122, 181, 0.1),
++    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+ }
+ 
+-.error-hero-content {
++.review-hero-content {
++  position: relative;
++  z-index: 2;
+   min-width: 0;
+   display: flex;
+   flex-direction: column;
+-  justify-content: center;
++  align-items: flex-start;
++  padding-right: 7.2rem;
++}
++
++.review-hero-grid-no-image .review-hero-content {
++  padding-right: 8.6rem;
+ }
+ 
+-.error-mini-stats {
++.review-hero-pills {
+   display: flex;
+   flex-wrap: wrap;
+-  gap: 0.45rem;
+-  margin-bottom: 0.45rem;
++  gap: 0.55rem;
++  margin-bottom: 0.82rem;
+ }
+ 
+-.error-mini-pill {
++.review-mini-pill {
+   display: inline-flex;
+   align-items: center;
+-  gap: 0.35rem;
+-  min-height: 1.95rem;
+-  padding: 0 0.72rem;
+-  border: 1px solid rgba(188, 212, 255, 0.9);
++  gap: 0.38rem;
++  min-height: 2rem;
++  padding: 0 0.84rem;
++  border: 1px solid rgba(189, 210, 248, 0.94);
+   border-radius: 999px;
+-  background: rgba(255, 255, 255, 0.82);
+-  color: #5182de;
+-  font-size: 0.76rem;
+-  font-weight: 800;
++  background: rgba(255, 255, 255, 0.88);
++  color: #2b62d8;
++  font-size: 0.83rem;
++  font-weight: 850;
++  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98);
+ }
+ 
+-.error-question-text {
++.review-mini-pill-level {
++  color: #3f69d5;
++}
++
++.review-question-text {
+   margin: 0;
+-  color: #18284f;
+-  font-size: 1rem;
+-  line-height: 1.78;
++  color: #152b63;
++  font-size: 1.12rem;
++  line-height: 1.72;
++  font-weight: 850;
+   white-space: pre-wrap;
+ }
+ 
+-.error-question-tags-row {
++.review-question-tags-row {
+   display: flex;
+   align-items: flex-start;
+-  gap: 0.35rem;
+-  margin-top: 0.08rem;
++  gap: 0.45rem;
++  margin-top: 1rem;
++  width: 100%;
+ }
+ 
+-.error-question-tags {
++.review-question-tags {
+   flex: 1;
+   display: flex;
+   flex-wrap: wrap;
+-  gap: 0.35rem;
++  gap: 0.42rem;
+   min-width: 0;
+ }
+ 
+-.error-question-tags-collapsed {
+-  max-height: 1.45rem;
++.review-question-tags-collapsed {
++  max-height: 1.8rem;
+   overflow: hidden;
+ }
+ 
+-.error-chip {
++.review-chip {
+   display: inline-flex;
+   align-items: center;
+-  min-height: 1.45rem;
+-  padding: 0 0.5rem;
+-  border: 1px solid rgba(188, 212, 255, 0.9);
++  min-height: 1.8rem;
++  padding: 0 0.7rem;
++  border: 1px solid rgba(191, 213, 250, 0.96);
+   border-radius: 999px;
+-  background: rgba(255, 255, 255, 0.82);
+-  color: #5182de;
+-  font-size: 0.68rem;
++  background: rgba(255, 255, 255, 0.84);
++  color: #2670ff;
++  font-size: 0.78rem;
+   font-weight: 800;
+ }
+ 
+-.error-inline-expand {
+-  display: inline-grid;
+-  width: 1.45rem;
+-  height: 1.45rem;
+-  place-items: center;
+-  border: 0;
++.review-inline-expand {
++  display: inline-flex;
++  align-items: center;
++  gap: 0.24rem;
++  min-height: 1.8rem;
++  padding: 0 0.72rem;
++  border: 1px solid rgba(199, 216, 248, 0.96);
+   border-radius: 999px;
+-  background: rgba(255, 255, 255, 0.82);
+-  color: #4f82df;
++  background: rgba(255, 255, 255, 0.86);
++  color: #3c6fdb;
++  font-size: 0.74rem;
++  font-weight: 800;
+ }
+ 
+-.error-tabs-panel {
+-  margin-top: 1rem;
+-  border-radius: 2rem 2rem 0 0;
++.review-inline-expand-open {
++  transform: rotate(180deg);
++}
++
++.review-expand-answer,
++.review-primary-button {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  gap: 0.48rem;
++  min-height: 3.9rem;
++  border: 0;
++  border-radius: 1.4rem;
++  padding: 0 1.7rem;
++  background: linear-gradient(135deg, #2f7cff 0%, #1f66ff 100%);
++  color: white;
++  font-size: 1rem;
++  font-weight: 900;
++  box-shadow:
++    0 16px 32px rgba(34, 102, 255, 0.26),
++    inset 0 1px 0 rgba(255, 255, 255, 0.28);
++}
++
++.review-expand-answer {
++  margin-top: 1.2rem;
++}
++
++.review-hero-ornament {
++  position: absolute;
++  right: 0.35rem;
++  bottom: 0.1rem;
++  width: 9.5rem;
++  height: 10rem;
++  pointer-events: none;
++  opacity: 0.82;
++}
++
++.review-cube {
++  position: absolute;
++  border: 1px solid rgba(179, 205, 255, 0.56);
++  background: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(214, 231, 255, 0.18));
++  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
++}
++
++.review-cube::before,
++.review-cube::after {
++  content: "";
++  position: absolute;
++  border: 1px solid rgba(179, 205, 255, 0.46);
++}
++
++.review-cube::before {
++  inset: -0.42rem 0.42rem auto auto;
++  width: 0.92rem;
++  height: 0.92rem;
++  transform: skewY(-30deg);
++  border-left: 0;
++  border-bottom: 0;
++}
++
++.review-cube::after {
++  inset: auto -0.42rem 0.42rem auto;
++  width: 0.92rem;
++  height: calc(100% - 0.1rem);
++  transform: skewY(30deg);
++  border-left: 0;
++  border-top: 0;
++}
++
++.review-cube-a {
++  right: 1.2rem;
++  top: 0.8rem;
++  width: 2rem;
++  height: 2rem;
++}
++
++.review-cube-b {
++  right: 2.9rem;
++  top: 2.8rem;
++  width: 2.25rem;
++  height: 2.25rem;
++}
++
++.review-cube-c {
++  right: 0.85rem;
++  top: 3.2rem;
++  width: 2.15rem;
++  height: 2.15rem;
++}
++
++.review-cube-d {
++  right: 4.7rem;
++  top: 4.5rem;
++  width: 1.7rem;
++  height: 1.7rem;
++}
++
++.review-cube-e {
++  right: 3.3rem;
++  bottom: 0.75rem;
++  width: 1.95rem;
++  height: 1.95rem;
++}
++
++.review-answer-card {
++  margin-top: 1.1rem;
++  border-radius: 2rem;
+   background:
+-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.96), transparent 34%),
+-    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 250, 255, 0.98) 100%);
++    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.98), transparent 35%),
++    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 249, 255, 0.98) 100%);
+   box-shadow:
+     0 18px 42px rgba(97, 126, 190, 0.08),
+-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
++    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+ }
+ 
+-.error-tabs {
+-  display: grid;
+-  grid-template-columns: repeat(2, minmax(0, 1fr));
++.review-tabs {
++  display: flex;
++  gap: 0.28rem;
++  padding: 0.9rem 0.9rem 0;
+ }
+ 
+-.error-tab {
++.review-tab {
+   position: relative;
+-  min-height: 3.05rem;
++  flex: 1;
++  min-height: 3.45rem;
+   border: 0;
+-  background: linear-gradient(180deg, rgba(249, 251, 255, 0.96) 0%, rgba(243, 247, 255, 0.96) 100%);
+-  color: #8f98ab;
+-  font-size: 0.88rem;
++  border-radius: 1.3rem 1.3rem 0 0;
++  background: linear-gradient(180deg, rgba(246, 249, 255, 0.96) 0%, rgba(239, 245, 255, 0.96) 100%);
++  color: #8091b6;
++  font-size: 1rem;
+   font-weight: 900;
+ }
+ 
+-.error-tab:first-child {
+-  border-top-left-radius: 2rem;
+-}
+-
+-.error-tab:last-child {
+-  border-top-right-radius: 2rem;
+-}
+-
+-.error-tab-active {
+-  background: white;
+-  color: #2f7cff;
++.review-tab-active {
++  background: rgba(255, 255, 255, 0.98);
++  color: #1f66ff;
+ }
+ 
+-.error-tab-active::after {
++.review-tab-active::after {
+   content: "";
+   position: absolute;
+   left: 50%;
+-  bottom: 0.28rem;
+-  width: 2.7rem;
+-  height: 0.2rem;
++  bottom: 0.4rem;
++  width: 3.4rem;
++  height: 0.22rem;
+   border-radius: 999px;
+-  background: #2f7cff;
++  background: linear-gradient(90deg, #1f66ff 0%, #4d8dff 100%);
+   transform: translateX(-50%);
+ }
+ 
+-.error-tab-content {
+-  padding: 0 1.15rem 1rem;
+-  margin-top: -0.18rem;
++.review-tab-panel {
++  padding: 0 0.9rem 0.95rem;
+ }
+ 
+-.error-content-card {
+-  padding: 1rem 0 0;
++.review-content-card {
++  border: 1px solid rgba(224, 233, 247, 0.96);
++  border-radius: 1.55rem;
++  background: rgba(255, 255, 255, 0.98);
++  padding: 1.15rem;
++  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98);
+ }
+ 
+-.error-content-section + .error-content-section {
+-  margin-top: 0.95rem;
++.review-content-section + .review-content-section {
++  margin-top: 1rem;
+ }
+ 
+-.error-content-section-divider {
+-  padding-top: 0.95rem;
+-  border-top: 1px solid rgba(231, 237, 248, 0.96);
++.review-content-section-divider {
++  padding-top: 1rem;
++  border-top: 1px dashed rgba(222, 231, 245, 0.96);
+ }
+ 
+-.error-card-head {
++.review-card-head {
+   display: flex;
+   align-items: center;
+-  gap: 0.55rem;
+-  margin-bottom: 0.55rem;
++  gap: 0.58rem;
++  margin-bottom: 0.62rem;
+ }
+ 
+-.error-card-head h2 {
++.review-card-head h2 {
+   margin: 0;
+   font-size: 1rem;
+   font-weight: 900;
+-  color: #1a2b57;
++  color: #17306b;
+ }
+ 
+-.error-content-text {
++.review-content-text {
+   margin: 0;
+   white-space: pre-wrap;
+-  color: #1a2b57;
+-  font-size: 0.94rem;
++  color: #1b315f;
++  font-size: 0.97rem;
++  line-height: 1.8;
++}
++
++.review-empty-state {
++  padding: 0.25rem 0;
++}
++
++.review-empty-state p {
++  margin: 0;
++  color: #6e80a7;
++  font-size: 0.95rem;
+   line-height: 1.72;
+ }
+ 
+-.error-done-card {
++.review-done-card {
++  padding: 1.8rem 1.4rem;
+   text-align: center;
+ }
+ 
+-.error-done-title {
++.review-done-icon {
++  display: flex;
++  justify-content: center;
++  margin-bottom: 1rem;
++}
++
++.review-done-title {
+   margin: 0;
+   color: #1d2e62;
+-  font-size: 1.3rem;
++  font-size: 1.42rem;
+   font-weight: 900;
+ }
+ 
+-.error-done-text {
++.review-done-text {
+   margin: 0.6rem auto 0;
+   max-width: 20rem;
+   color: #6d7ea9;
+-  font-size: 0.92rem;
++  font-size: 0.95rem;
+   line-height: 1.7;
+ }
+ 
+-.error-primary-button {
+-  display: inline-flex;
+-  align-items: center;
+-  justify-content: center;
+-  min-height: 3.2rem;
+-  border: 0;
+-  border-radius: 1.2rem;
+-  background: linear-gradient(135deg, #3883ff 0%, #166fff 100%);
+-  color: white;
+-  font-size: 0.92rem;
+-  font-weight: 900;
+-}
+-
+-.error-actions {
++.review-rating-bar {
+   position: fixed;
+   left: 0;
+   right: 0;
+   bottom: 0;
++  z-index: 30;
++  padding: 0.9rem 0.95rem calc(var(--safe-area-bottom) + 0.92rem);
++  background: linear-gradient(180deg, rgba(244, 248, 255, 0) 0%, rgba(244, 248, 255, 0.84) 28%, rgba(244, 248, 255, 0.95) 100%);
++}
++
++.review-rating-shell {
+   display: grid;
+-  gap: 0.8rem;
+-  padding: 0.85rem 1.5rem calc(var(--safe-area-bottom) + 0.95rem);
+-  background: linear-gradient(180deg, rgba(244, 248, 255, 0) 0%, rgba(244, 248, 255, 0.94) 24%, rgba(244, 248, 255, 0.98) 100%);
++  grid-template-columns: repeat(3, minmax(0, 1fr));
++  gap: 0.72rem;
++  padding: 0.72rem;
++  border: 1px solid rgba(215, 226, 245, 0.96);
++  border-radius: 1.7rem;
++  background: rgba(255, 255, 255, 0.82);
++  backdrop-filter: blur(18px);
++  box-shadow:
++    0 18px 36px rgba(79, 107, 172, 0.12),
++    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+ }
+ 
+-.error-action {
+-  display: inline-flex;
++.review-score {
++  display: flex;
++  min-height: 5rem;
+   align-items: center;
+-  justify-content: center;
+-  gap: 0.45rem;
+-  min-height: 3.55rem;
+-  border-radius: 1.2rem;
+-  border: 0;
+-  font-size: 0.92rem;
+-  font-weight: 900;
++  gap: 0.72rem;
++  border: 1px solid transparent;
++  border-radius: 1.4rem;
++  padding: 0.95rem 0.88rem;
++  text-align: left;
++  box-shadow:
++    0 10px 22px rgba(95, 119, 173, 0.08),
++    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+ }
+ 
+-.error-action-wide {
+-  grid-column: span 2;
++.review-score-red {
++  border-color: rgba(255, 194, 194, 0.98);
++  background: linear-gradient(180deg, rgba(255, 251, 251, 0.98), rgba(255, 244, 244, 0.98));
++  color: #ef4e53;
+ }
+ 
+-.error-action-ghost {
+-  border: 1px solid rgba(205, 219, 244, 0.95);
+-  background: rgba(255, 255, 255, 0.98);
+-  color: #263656;
++.review-score-warm {
++  border-color: rgba(255, 216, 171, 0.98);
++  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(255, 245, 229, 0.98));
++  color: #f29118;
+ }
+ 
+-.error-action-primary {
+-  background: linear-gradient(135deg, #3883ff 0%, #166fff 100%);
+-  color: white;
++.review-score-green {
++  border-color: rgba(185, 237, 197, 0.98);
++  background: linear-gradient(180deg, rgba(248, 255, 250, 0.98), rgba(238, 250, 242, 0.98));
++  color: #18a957;
++}
++
++.review-score-icon {
++  display: inline-grid;
++  width: 2.2rem;
++  height: 2.2rem;
++  place-items: center;
++  flex-shrink: 0;
++  border-radius: 999px;
++  border: 2px solid currentColor;
++  font-size: 1rem;
++  font-weight: 900;
++  line-height: 1;
+ }
+ 
+-.error-score {
++.review-score-copy {
+   display: flex;
+-  min-height: 4rem;
++  min-width: 0;
+   flex-direction: column;
+   align-items: flex-start;
+-  justify-content: center;
+-  border: 0;
+-  border-radius: 1.25rem;
+-  padding: 0.8rem 0.95rem;
+-  text-align: left;
+-  color: white;
+ }
+ 
+-.error-score-red {
+-  background: linear-gradient(135deg, #ff8f82 0%, #ff6f66 100%);
++.review-score-title {
++  font-size: 1rem;
++  font-weight: 900;
+ }
+ 
+-.error-score-warm {
+-  background: linear-gradient(135deg, #ffc951 0%, #ffb338 42%, #ffa01f 100%);
++.review-score-hint {
++  margin-top: 0.2rem;
++  color: rgba(41, 55, 90, 0.68);
++  font-size: 0.76rem;
++  line-height: 1.35;
+ }
+ 
+-.error-score-green {
+-  background: linear-gradient(135deg, #6edd71 0%, #4ed45d 42%, #31c44d 100%);
+-}
++@media (max-width: 720px) {
++  .review-topbar {
++    grid-template-columns: 3rem minmax(0, 1fr);
++    gap: 0.7rem;
++    padding-right: 1rem;
++    padding-left: 1rem;
++  }
+ 
+-.error-score-title {
+-  font-size: 0.92rem;
+-  font-weight: 900;
+-}
++  .review-nav-button {
++    width: 2.8rem;
++    height: 2.8rem;
++    border-radius: 1.05rem;
++  }
+ 
+-.error-score-hint {
+-  margin-top: 0.2rem;
+-  font-size: 0.72rem;
+-  color: rgba(255, 255, 255, 0.84);
+-}
++  .review-title {
++    font-size: 1.22rem;
++  }
+ 
+-@media (min-width: 721px) {
+-  .error-actions {
+-    grid-template-columns: 1fr 1.4fr;
++  .review-subtitle {
++    font-size: 0.8rem;
+   }
+ 
+-  .error-score {
+-    min-height: 4.3rem;
++  .review-progress-pill {
++    grid-column: 2;
++    justify-self: end;
++    min-width: 5.5rem;
++    margin-top: 0.15rem;
++    padding: 0.58rem 0.8rem 0.52rem;
+   }
+-}
+ 
+-@media (max-width: 720px) {
+-  .error-header,
+-  .error-main,
+-  .error-actions {
++  .review-progress-numbers strong {
++    font-size: 1.38rem;
++  }
++
++  .review-shell {
++    padding-top: 1rem;
+     padding-right: 1rem;
+     padding-left: 1rem;
+   }
+ 
+-  .error-main {
+-    padding-top: 1rem;
++  .review-hero-card {
++    padding: 1.15rem 1rem 1rem;
+   }
+ 
+-  .error-hero-top {
+-    grid-template-columns: 5.8rem minmax(0, 1fr);
++  .review-hero-grid {
++    grid-template-columns: 5.9rem minmax(0, 1fr);
+     gap: 0.95rem;
+   }
+ 
+-  .error-thumb {
++  .review-thumb {
+     height: 8.2rem;
++    border-radius: 1.05rem;
+   }
+ 
+-  .error-question-text {
++  .review-hero-content,
++  .review-hero-grid-no-image .review-hero-content {
++    padding-right: 0;
++  }
++
++  .review-question-text {
++    font-size: 0.98rem;
++    line-height: 1.64;
++  }
++
++  .review-hero-ornament {
++    right: -0.3rem;
++    bottom: -0.1rem;
++    width: 7rem;
++    height: 7rem;
++    opacity: 0.5;
++  }
++
++  .review-expand-answer,
++  .review-primary-button {
++    min-height: 3.55rem;
++    width: 100%;
++    font-size: 0.96rem;
++  }
++
++  .review-tabs {
++    padding: 0.72rem 0.72rem 0;
++  }
++
++  .review-tab {
++    min-height: 3rem;
++    font-size: 0.9rem;
++  }
++
++  .review-tab-panel {
++    padding: 0 0.72rem 0.72rem;
++  }
++
++  .review-content-card {
++    padding: 1rem;
++  }
++
++  .review-rating-bar {
++    padding-right: 0.8rem;
++    padding-left: 0.8rem;
++  }
++
++  .review-rating-shell {
++    gap: 0.6rem;
++    padding: 0.62rem;
++  }
++
++  .review-score {
++    min-height: 4.7rem;
++    flex-direction: column;
++    align-items: flex-start;
++    gap: 0.52rem;
++    padding: 0.82rem 0.74rem;
++  }
++
++  .review-score-icon {
++    width: 2rem;
++    height: 2rem;
++  }
++
++  .review-score-title {
+     font-size: 0.94rem;
+-    line-height: 1.68;
+   }
+ 
+-  .error-tab {
+-    min-height: 2.9rem;
+-    font-size: 0.86rem;
++  .review-score-hint {
++    font-size: 0.72rem;
+   }
++}
+ 
+-  .error-tab-content {
+-    padding-right: 1rem;
+-    padding-bottom: 0.9rem;
+-    padding-left: 1rem;
++/* Strong visual alignment with the approved UI mock: keep the header single-row on phones,
++   make the hero card more compact and make the bottom rating area feel like a premium floating bar. */
++.review-topbar {
++  max-width: 46rem;
++  margin: 0 auto;
++  grid-template-columns: 3.05rem minmax(0, 1fr) 5.85rem;
++}
++
++.review-progress-pill {
++  grid-column: auto;
++  justify-self: end;
++  margin-top: 0;
++}
++
++.review-hero-card,
++.review-answer-card,
++.review-note-preview,
++.review-done-card {
++  max-width: 46rem;
++  margin-inline: auto;
++}
++
++.review-hero-card {
++  border-radius: 1.82rem;
++  padding: 1.18rem 1.08rem 1.08rem;
++}
++
++.review-hero-pills {
++  justify-content: flex-start;
++}
++
++.review-hero-grid {
++  display: grid;
++  grid-template-columns: 9.25rem minmax(0, 1fr);
++  gap: 1.08rem;
++  align-items: start;
++}
++
++.review-thumb {
++  height: 9.25rem;
++  border-radius: 1.18rem;
++}
++
++.review-hero-content {
++  padding-right: 5.2rem;
++}
++
++.review-hero-grid-no-image .review-hero-content {
++  max-width: 32rem;
++  padding-right: 6rem;
++}
++
++.review-question-text {
++  max-width: 28.5rem;
++  font-size: 1.04rem;
++  line-height: 1.72;
++}
++
++.review-question-tags-row {
++  max-width: 28.5rem;
++}
++
++.review-expand-answer {
++  align-self: flex-start;
++  min-width: 17rem;
++  padding-right: 1.5rem;
++  padding-left: 1.5rem;
++}
++
++.review-hero-ornament {
++  right: 0.5rem;
++  bottom: 0.55rem;
++  width: 7.25rem;
++  height: 7.6rem;
++  opacity: 0.54;
++}
++
++.review-cube-a {
++  right: 0.95rem;
++  top: 0.45rem;
++  width: 1.7rem;
++  height: 1.7rem;
++}
++
++.review-cube-b {
++  right: 2.35rem;
++  top: 2.15rem;
++  width: 1.9rem;
++  height: 1.9rem;
++}
++
++.review-cube-c {
++  right: 0.65rem;
++  top: 2.45rem;
++  width: 1.82rem;
++  height: 1.82rem;
++}
++
++.review-cube-d {
++  right: 3.9rem;
++  top: 3.85rem;
++  width: 1.38rem;
++  height: 1.38rem;
++}
++
++.review-cube-e {
++  right: 2.7rem;
++  bottom: 0.25rem;
++  width: 1.62rem;
++  height: 1.62rem;
++}
++
++.review-answer-card {
++  padding: 0.78rem;
++}
++
++.review-content-card {
++  border-radius: 0 0 1.45rem 1.45rem;
++  padding: 1.18rem 1.05rem;
++}
++
++.review-note-preview {
++  display: grid;
++  grid-template-columns: auto minmax(0, 1fr) auto;
++  align-items: center;
++  gap: 0.74rem;
++  width: 100%;
++  margin-top: 0.98rem;
++  padding: 1rem 1.04rem;
++  text-align: left;
++  background: rgba(255, 255, 255, 0.94);
++}
++
++.review-note-icon {
++  display: grid;
++  width: 2.3rem;
++  height: 2.3rem;
++  place-items: center;
++  border-radius: 0.82rem;
++  background: rgba(232, 240, 255, 0.94);
++  color: #1f66ff;
++}
++
++.review-note-copy {
++  display: flex;
++  min-width: 0;
++  flex-direction: column;
++  gap: 0.28rem;
++}
++
++.review-note-copy strong {
++  color: #1f66ff;
++  font-size: 1rem;
++  font-weight: 950;
++}
++
++.review-note-copy span {
++  color: #5e6f99;
++  font-size: 0.84rem;
++  line-height: 1.42;
++}
++
++.review-face {
++  position: relative;
++  display: grid;
++  width: 2.35rem;
++  height: 2.35rem;
++  place-items: center;
++  flex-shrink: 0;
++  border: 2px solid currentColor;
++  border-radius: 999px;
++}
++
++.review-face-eyes {
++  position: absolute;
++  top: 0.48rem;
++  left: 50%;
++  transform: translateX(-50%);
++  font-size: 1.18rem;
++  letter-spacing: 0.1rem;
++  line-height: 0.8;
++}
++
++.review-face-mouth {
++  position: absolute;
++  left: 50%;
++  bottom: 0.56rem;
++  width: 0.92rem;
++  height: 0.34rem;
++  transform: translateX(-50%);
++}
++
++.review-face-sad .review-face-mouth {
++  border-top: 2px solid currentColor;
++  border-radius: 999px 999px 0 0;
++}
++
++.review-face-flat .review-face-mouth {
++  height: 0;
++  border-top: 2px solid currentColor;
++}
++
++.review-face-smile .review-face-mouth {
++  border-bottom: 2px solid currentColor;
++  border-radius: 0 0 999px 999px;
++}
++
++.review-rating-shell {
++  gap: 0.58rem;
++  padding: 0.64rem;
++  border-radius: 1.55rem;
++}
++
++.review-score {
++  min-height: 5rem;
++  flex-direction: row;
++  align-items: center;
++  gap: 0.62rem;
++  border-radius: 1.28rem;
++  padding: 0.82rem 0.68rem;
++}
++
++@media (max-width: 420px) {
++  .review-topbar {
++    grid-template-columns: 2.86rem minmax(0, 1fr) 5.45rem;
++    gap: 0.46rem;
++    padding-right: 0.78rem;
++    padding-left: 0.78rem;
++  }
++
++  .review-nav-button {
++    width: 2.78rem;
++    height: 2.78rem;
++    border-radius: 1rem;
++  }
++
++  .review-title {
++    font-size: 1.25rem;
+   }
+ 
+-  .error-actions {
+-    grid-template-columns: 1fr 1.25fr;
++  .review-subtitle {
++    font-size: 0.72rem;
++    transform: scale(0.94);
++    transform-origin: center;
+   }
+ 
+-  .error-action-wide {
+-    grid-column: auto;
++  .review-progress-pill {
++    width: 5.45rem;
++    min-width: 0;
++    padding-right: 0.68rem;
++    padding-left: 0.68rem;
++  }
++
++  .review-hero-grid {
++    grid-template-columns: 6.35rem minmax(0, 1fr);
++    gap: 0.74rem;
++  }
++
++  .review-thumb {
++    height: 6.35rem;
++  }
++
++  .review-question-text {
++    font-size: 0.98rem;
++    line-height: 1.58;
++  }
++
++  .review-score {
++    flex-direction: column;
++    align-items: flex-start;
++    gap: 0.44rem;
++    padding: 0.72rem 0.58rem;
++  }
++
++  .review-face {
++    width: 2.05rem;
++    height: 2.05rem;
++  }
++}
++
++@media (min-width: 721px) {
++  .review-shell {
++    max-width: 48rem;
++    margin: 0 auto;
++    padding-right: 1.5rem;
++    padding-left: 1.5rem;
++  }
++
++  .review-rating-bar {
++    left: 50%;
++    right: auto;
++    width: min(calc(100vw - 2rem), 50rem);
++    transform: translateX(-50%);
++  }
++
++  .review-rating-shell {
++    margin: 0 auto;
++    max-width: 46rem;
++  }
++
++  .review-expand-answer {
++    min-width: 18.5rem;
++  }
++}
++
++@media (min-width: 1100px) {
++  .review-shell {
++    max-width: 44rem;
+   }
+ 
+-  .error-actions-rating {
+-    grid-template-columns: repeat(3, minmax(0, 1fr));
++  .review-topbar,
++  .review-hero-card,
++  .review-answer-card,
++  .review-note-preview,
++  .review-done-card {
++    max-width: 44rem;
+   }
+ 
+-  .error-score {
+-    min-height: 3.8rem;
+-    padding: 0.7rem 0.8rem;
++  .review-rating-bar {
++    width: min(calc(100vw - 2rem), 46rem);
+   }
+ }
+ </style>

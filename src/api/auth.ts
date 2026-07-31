@@ -12,6 +12,14 @@ export async function login(serverUrl: string, email: string, password: string):
   })
 }
 
+export async function refreshAccessToken(): Promise<AuthStatus> {
+  return await invoke<AuthStatus>('refresh_access_token')
+}
+
+export async function logout(): Promise<AuthStatus> {
+  return await invoke<AuthStatus>('mobile_logout')
+}
+
 export async function getAuthStatus(): Promise<AuthStatus> {
   return await invoke<AuthStatus>('get_auth_status')
 }

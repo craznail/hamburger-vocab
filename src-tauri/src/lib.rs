@@ -69,9 +69,14 @@ pub fn run() {
             commands::error_item::save_error_item,
             commands::error_item::analyze_error_draft,
             commands::error_item::rate_error_item,
+            commands::error_item::get_error_sync_conflicts,
+            commands::error_item::resolve_error_sync_conflict_keep_local,
+            commands::error_item::resolve_error_sync_conflict_accept_remote,
             commands::error_item::sync_error_items,
             // Mobile auth / sync commands
             commands::mobile::mobile_login,
+            commands::mobile::refresh_access_token,
+            commands::mobile::mobile_logout,
             commands::mobile::get_auth_status,
             // Import commands (new integrated commands)
             commands::import::rate_card,

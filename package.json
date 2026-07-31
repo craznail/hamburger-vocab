@@ -4,6 +4,9 @@
   "version": "0.3.0",
   "type": "module",
   "scripts": {
+    "ai-bridge:run": "bash scripts/ai-bridge-runner.sh",
+    "ai-bridge:state": "node scripts/ai-bridge-state.mjs",
+    "ai-bridge:watch": "bash scripts/ai-bridge-watch.sh",
     "dev": "node scripts/vite-dev.mjs",
     "build": "vite build",
     "preview": "vite preview",
@@ -18,20 +21,24 @@
     "build:desktop": "tauri build"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
+    "@traptitech/markdown-it-katex": "^3.6.0",
+    "katex": "^0.17.0",
     "lucide-vue-next": "^0.483.0",
+    "markdown-it": "^14.2.0",
     "pinia": "^3.0.0",
-    "vue": "^3.5.34",
+    "vue": "^3.5.38",
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.0",
-    "@tauri-apps/cli": "^2.11.2",
+    "@tailwindcss/vite": "^4.3.1",
+    "@tauri-apps/cli": "^2.11.3",
+    "@types/markdown-it": "^14.1.2",
     "@vitejs/plugin-vue": "^6.0.6",
     "playwright": "^1.60.0",
-    "tailwindcss": "^4.1.0",
+    "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.12",
     "vue-tsc": "^3.3.5"

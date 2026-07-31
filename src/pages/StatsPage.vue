@@ -266,7 +266,7 @@ function formatChartDuration(seconds) {
             <div class="stats-ring" :style="{ background: ringGradient }">
               <div class="stats-ring-inner">
                 <span class="stats-ring-total">{{ stats.totalCards }}</span>
-                <span class="stats-ring-caption">总计</span>
+                <span class="stats-ring-caption">知识</span>
               </div>
             </div>
           </div>
@@ -291,7 +291,7 @@ function formatChartDuration(seconds) {
         <img class="stats-suggestion-icon" :src="suggestionIcon" alt="" aria-hidden="true" />
         <div class="stats-suggestion-copy">
           <h2 class="stats-suggestion-title">今日建议</h2>
-          <p class="stats-suggestion-text">先完成 {{ stats.dueCards }} 张复习卡，再进入自由练习。</p>
+          <p class="stats-suggestion-text">先完成 {{ stats.dueCards }} 个到期知识，再进入自由练习。</p>
         </div>
         <button class="stats-suggestion-action" type="button" @click="router.push({ name: 'Study' })">
           去学习
@@ -319,8 +319,8 @@ function formatChartDuration(seconds) {
         <div class="stats-summary-item">
           <img class="stats-summary-icon" :src="correctIcon" alt="" aria-hidden="true" />
           <div class="stats-summary-copy">
-            <p class="stats-summary-value">错题订正 <strong>{{ weeklyCorrectionCount }}</strong></p>
-            <p class="stats-summary-label">本周订正</p>
+            <p class="stats-summary-value">待巩固 <strong>{{ weeklyCorrectionCount }}</strong></p>
+            <p class="stats-summary-label">到期知识</p>
           </div>
         </div>
       </section>
